@@ -257,67 +257,98 @@ class Generation_Controller {
     }
 
     public function ajax_start_generation(): void {
-        $this->verify_ajax_request();
+        try {
+            $this->verify_ajax_request();
 
-        if ( '' === $this->settings->get_api_key() ) {
-            \wp_send_json_error( [ 'message' => \__( 'Add your API key before running the workflow.', 'imagegecko' ) ], 400 );
-        }
+            if ( '' === $this->settings->get_api_key() ) {
+                $this->logger->error( 'AJAX start generation failed: No API key configured.' );
+                \wp_send_json_error( [ 'message' => \__( 'Add your API key before running the workflow.', 'imagegecko' ) ], 400 );
+            }
 
-        $product_ids = $this->resolve_target_products();
+            $this->logger->info( 'Starting AJAX generation workflow.' );
+            
+            $product_ids = $this->resolve_target_products();
+            $this->logger->info( 'Resolved target products.', [ 'count' => count( $product_ids ), 'product_ids' => $product_ids ] );
 
-        $products = [];
-        foreach ( $product_ids as $product_id ) {
-            $label = \get_the_title( $product_id );
+            $products = [];
+            foreach ( $product_ids as $product_id ) {
+                $label = \get_the_title( $product_id );
 
-            if ( \function_exists( '\wc_get_product' ) ) {
-                $product = \wc_get_product( $product_id );
-                if ( $product ) {
-                    $label = $product->get_formatted_name();
+                if ( \function_exists( '\wc_get_product' ) ) {
+                    $product = \wc_get_product( $product_id );
+                    if ( $product ) {
+                        $label = $product->get_formatted_name();
+                    }
                 }
+
+                if ( '' === (string) $label ) {
+                    $label = sprintf( \__( 'Product #%d', 'imagegecko' ), $product_id );
+                }
+
+                $products[] = [
+                    'id'    => $product_id,
+                    'label' => $label,
+                ];
             }
 
-            if ( '' === (string) $label ) {
-                $label = sprintf( \__( 'Product #%d', 'imagegecko' ), $product_id );
-            }
-
-            $products[] = [
-                'id'    => $product_id,
-                'label' => $label,
+            $data = [
+                'products' => $products,
+                'total'    => count( $products ),
             ];
+
+            if ( empty( $products ) ) {
+                $data['message'] = \__( 'No products match your current targeting rules.', 'imagegecko' );
+                $this->logger->info( 'No products found matching targeting rules.' );
+            }
+
+            $this->logger->info( 'AJAX start generation completed successfully.', [ 'product_count' => count( $products ) ] );
+            \wp_send_json_success( $data );
+            
+        } catch ( \Exception $e ) {
+            $this->logger->error( 'AJAX start generation failed with exception.', [ 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString() ] );
+            \wp_send_json_error( [ 'message' => \__( 'An error occurred while preparing the generation run. Please check the logs and try again.', 'imagegecko' ) ], 500 );
         }
-
-        $data = [
-            'products' => $products,
-            'total'    => count( $products ),
-        ];
-
-        if ( empty( $products ) ) {
-            $data['message'] = \__( 'No products match your current targeting rules.', 'imagegecko' );
-        }
-
-        \wp_send_json_success( $data );
     }
 
     public function ajax_process_product(): void {
-        $this->verify_ajax_request();
+        try {
+            $this->verify_ajax_request();
 
-        $product_id = isset( $_POST['product_id'] ) ? (int) $_POST['product_id'] : 0;
+            $product_id = isset( $_POST['product_id'] ) ? (int) $_POST['product_id'] : 0;
 
-        if ( $product_id <= 0 ) {
-            \wp_send_json_error( [ 'message' => \__( 'Invalid product identifier.', 'imagegecko' ) ], 400 );
+            if ( $product_id <= 0 ) {
+                $this->logger->error( 'AJAX process product failed: Invalid product ID.', [ 'provided_id' => $_POST['product_id'] ?? 'not_set' ] );
+                \wp_send_json_error( [ 'message' => \__( 'Invalid product identifier.', 'imagegecko' ) ], 400 );
+            }
+
+            $this->logger->info( 'Processing product via AJAX.', [ 'product_id' => $product_id ] );
+            
+            $result = $this->generate_product_now( $product_id, [ 'force' => true ] );
+
+            $this->logger->info( 'AJAX process product completed.', [ 
+                'product_id' => $product_id, 
+                'success' => $result['success'], 
+                'status' => $result['status'] 
+            ] );
+
+            \wp_send_json_success(
+                [
+                    'product_id'    => $product_id,
+                    'success'       => $result['success'],
+                    'status'        => $result['status'],
+                    'message'       => $result['message'],
+                    'attachment_id' => $result['attachment_id'] ?? null,
+                ]
+            );
+            
+        } catch ( \Exception $e ) {
+            $this->logger->error( 'AJAX process product failed with exception.', [ 
+                'product_id' => $product_id ?? 0, 
+                'error' => $e->getMessage(), 
+                'trace' => $e->getTraceAsString() 
+            ] );
+            \wp_send_json_error( [ 'message' => \__( 'An error occurred while processing the product. Please check the logs and try again.', 'imagegecko' ) ], 500 );
         }
-
-        $result = $this->generate_product_now( $product_id, [ 'force' => true ] );
-
-        \wp_send_json_success(
-            [
-                'product_id'    => $product_id,
-                'success'       => $result['success'],
-                'status'        => $result['status'],
-                'message'       => $result['message'],
-                'attachment_id' => $result['attachment_id'] ?? null,
-            ]
-        );
     }
 
     private function run_generation( int $product_id, string $prompt, array $categories ): array {
@@ -474,14 +505,24 @@ class Generation_Controller {
 
     private function verify_ajax_request(): void {
         $nonce = isset( $_REQUEST['nonce'] ) ? (string) $_REQUEST['nonce'] : '';
+        
+        $this->logger->debug( 'Verifying AJAX request.', [ 
+            'nonce_provided' => !empty( $nonce ),
+            'user_id' => \get_current_user_id(),
+            'can_manage_woocommerce' => \current_user_can( 'manage_woocommerce' )
+        ] );
 
         if ( ! \wp_verify_nonce( $nonce, Admin_Settings_Page::NONCE_ACTION ) ) {
+            $this->logger->error( 'AJAX request failed nonce verification.', [ 'provided_nonce' => $nonce ] );
             \wp_send_json_error( [ 'message' => \__( 'Invalid request nonce.', 'imagegecko' ) ], 403 );
         }
 
         if ( ! \current_user_can( 'manage_woocommerce' ) ) {
+            $this->logger->error( 'AJAX request failed permission check.', [ 'user_id' => \get_current_user_id() ] );
             \wp_send_json_error( [ 'message' => \__( 'You do not have permission to perform this action.', 'imagegecko' ) ], 403 );
         }
+        
+        $this->logger->debug( 'AJAX request verification passed.' );
     }
 
     private function should_process_product( int $product_id ): bool {

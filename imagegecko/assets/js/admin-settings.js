@@ -178,8 +178,16 @@
         this.hasApiKey = !!options.hasApiKey;
         this.i18n = options.i18n || {};
 
+        // Debug logging for initialization
+        console.log('ImageGecko: Initializing GenerationRunner with options:', {
+            ajaxUrl: this.ajaxUrl,
+            hasNonce: !!this.nonce,
+            hasApiKey: this.hasApiKey
+        });
+
         this.$button = $('#imagegecko-go-button');
         if (!this.$button.length) {
+            console.warn('ImageGecko: GO button not found');
             return;
         }
 
@@ -241,6 +249,8 @@
 
     GenerationRunner.prototype.start = function () {
         var self = this;
+        
+        console.log('ImageGecko: Starting generation workflow');
 
         this.setButtonState('busy');
         this.resetProgress();
@@ -249,7 +259,10 @@
             action: 'imagegecko_start_generation',
             nonce: this.nonce
         }).done(function (response) {
+            console.log('ImageGecko: Start generation response:', response);
+            
             if (!response || !response.success || !response.data || !Array.isArray(response.data.products)) {
+                console.error('ImageGecko: Invalid response structure:', response);
                 self.handleStartError(response);
                 return;
             }
@@ -259,21 +272,39 @@
 
             if (!self.total) {
                 var message = response.data.message || self.i18n.startError;
+                console.log('ImageGecko: No products found, message:', message);
                 self.showMessage(message);
                 self.setButtonState('idle');
                 return;
             }
 
+            console.log('ImageGecko: Starting generation for', self.total, 'products');
             self.renderInitialList();
             self.updateSummary();
             self.processNext();
-        }).fail(function () {
+        }).fail(function (xhr, status, error) {
+            console.error('ImageGecko: Start generation AJAX failed:', {
+                status: status,
+                error: error,
+                responseText: xhr.responseText,
+                statusCode: xhr.status
+            });
             self.handleStartError();
         });
     };
 
-    GenerationRunner.prototype.handleStartError = function () {
-        this.showMessage(this.i18n.startError || 'Unable to start.');
+    GenerationRunner.prototype.handleStartError = function (response) {
+        var message = this.i18n.startError || 'Unable to start.';
+        
+        // Try to extract more specific error message from response
+        if (response && response.data && response.data.message) {
+            message = response.data.message;
+        } else if (response && !response.success && response.data && typeof response.data === 'string') {
+            message = response.data;
+        }
+        
+        console.error('ImageGecko: Generation start error:', message);
+        this.showMessage(message);
         this.setButtonState('idle');
     };
 
@@ -332,13 +363,22 @@
             nonce: this.nonce,
             product_id: productId
         }).done(function (response) {
+            console.log('ImageGecko: Process product response for', productId, ':', response);
+            
             if (!response || !response.success || !response.data) {
+                console.error('ImageGecko: Invalid process response for product', productId, ':', response);
                 self.handleProcessFailure(productId);
                 return;
             }
 
             self.handleProcessResult(productId, response.data);
-        }).fail(function () {
+        }).fail(function (xhr, status, error) {
+            console.error('ImageGecko: Process product AJAX failed for', productId, ':', {
+                status: status,
+                error: error,
+                responseText: xhr.responseText,
+                statusCode: xhr.status
+            });
             self.handleProcessFailure(productId);
         });
     };
