@@ -1,12 +1,22 @@
 #!/bin/bash
 # Test script for ContentGecko API endpoint using curl
 # Tests the POST https://dev.api.contentgecko.io/product-image endpoint
+# Usage: ./test_api.sh [API_KEY]
 
 API_ENDPOINT="https://dev.api.contentgecko.io/product-image"
 IMAGE_PATH="/Users/ristorehemagi/Local Documents/ImageGecko/prillipilt.jpg"
+API_KEY="sk_3f8a9c72e1b54d0ab6c27d8f49bce5a1"
 
 echo "Testing ContentGecko API endpoint: $API_ENDPOINT"
 echo "Using image: $IMAGE_PATH"
+
+if [ -z "$API_KEY" ]; then
+    echo "WARNING: No API key provided. This will likely result in authentication errors."
+    echo "Usage: $0 <API_KEY>"
+    echo "Continuing without authentication..."
+else
+    echo "Using API key: ${API_KEY:0:10}..." # Show only first 10 chars for security
+fi
 
 # Check if image exists
 if [ ! -f "$IMAGE_PATH" ]; then
@@ -56,12 +66,24 @@ echo ""
 echo "Making API request..."
 
 # Make the API request with curl
-curl -X POST "$API_ENDPOINT" \
-  -H "Content-Type: application/json" \
-  -H "User-Agent: ImageGecko-Plugin-Test/1.0" \
-  -d "$JSON_PAYLOAD" \
-  -w "\n\nHTTP Status: %{http_code}\nTotal time: %{time_total}s\n" \
-  -v
+if [ -n "$API_KEY" ]; then
+    # With API key authentication
+    curl -X POST "$API_ENDPOINT" \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $API_KEY" \
+      -H "User-Agent: ImageGecko-Plugin-Test/1.0" \
+      -d "$JSON_PAYLOAD" \
+      -w "\n\nHTTP Status: %{http_code}\nTotal time: %{time_total}s\n" \
+      -v
+else
+    # Without API key (will likely fail)
+    curl -X POST "$API_ENDPOINT" \
+      -H "Content-Type: application/json" \
+      -H "User-Agent: ImageGecko-Plugin-Test/1.0" \
+      -d "$JSON_PAYLOAD" \
+      -w "\n\nHTTP Status: %{http_code}\nTotal time: %{time_total}s\n" \
+      -v
+fi
 
 echo ""
 echo "API test completed."

@@ -350,7 +350,12 @@ class Generation_Controller {
 
         if ( ! $api_response['success'] ) {
             $message = $api_response['error'] ?? \__( 'Mediator request failed.', 'imagegecko' );
-            $this->logger->error( 'Mediator generation failed.', [ 'product_id' => $product_id, 'error' => $message ] );
+            $this->logger->error( 'Mediator generation failed.', [ 
+                'product_id' => $product_id, 
+                'error' => $message,
+                'response_code' => $api_response['code'] ?? 'unknown',
+                'response_data' => $api_response['data'] ?? null
+            ] );
 
             return [
                 'success' => false,
@@ -358,12 +363,43 @@ class Generation_Controller {
             ];
         }
 
+        // Log the response structure for debugging
+        $this->logger->info( 'API response received.', [ 
+            'product_id' => $product_id,
+            'response_keys' => array_keys( $api_response['data'] ?? [] ),
+            'has_imageBase64' => isset( $api_response['data']['imageBase64'] ),
+            'imageBase64_length' => isset( $api_response['data']['imageBase64'] ) ? strlen( $api_response['data']['imageBase64'] ) : 0
+        ] );
+
+        // The API returns imageBase64 directly in the response root, not nested under 'data'
+        $response_data = $api_response['data'] ?? [];
+        
         $media_payload = [
-            'image_base64' => $api_response['data']['image_base64'] ?? null,
-            'image_url'    => $api_response['data']['image_url'] ?? null,
-            'file_name'    => $api_response['data']['file_name'] ?? 'imagegecko-generated.jpg',
-            'prompt'       => $api_response['data']['prompt'] ?? $prompt,
+            'image_base64' => $response_data['imageBase64'] ?? null,
+            'image_url'    => $response_data['image_url'] ?? null,
+            'file_name'    => $response_data['file_name'] ?? null,
+            'prompt'       => $response_data['prompt'] ?? $prompt,
         ];
+        
+        // Determine appropriate file extension based on response
+        if ( empty( $media_payload['file_name'] ) ) {
+            // Default to PNG since the API typically returns PNG images
+            $media_payload['file_name'] = 'imagegecko-generated-' . time() . '.png';
+        }
+        
+        // Validate that we have image data
+        if ( empty( $media_payload['image_base64'] ) && empty( $media_payload['image_url'] ) ) {
+            $this->logger->error( 'No image data in API response.', [ 
+                'product_id' => $product_id,
+                'response_keys' => array_keys( $response_data ),
+                'media_payload' => $media_payload
+            ] );
+            
+            return [
+                'success' => false,
+                'error'   => \__( 'API response missing image data. Check API credits and response format.', 'imagegecko' ),
+            ];
+        }
 
         $attachment_id = $this->image_handler->persist_generated_media( $product_id, $media_payload );
         if ( \is_wp_error( $attachment_id ) ) {

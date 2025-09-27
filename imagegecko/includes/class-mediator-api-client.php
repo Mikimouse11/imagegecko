@@ -87,7 +87,7 @@ class Mediator_Api_Client {
         $payload = json_decode( \wp_remote_retrieve_body( $response ), true );
 
         if ( $code >= 400 ) {
-            $message = is_array( $payload ) && isset( $payload['error'] ) ? $payload['error'] : \__( 'Mediator API returned an error.', 'imagegecko' );
+            $message = is_array( $payload ) && isset( $payload['error'] ) ? $payload['error'] : \__( 'ContentGecko returned an error.', 'imagegecko' );
             $this->logger->error( 'Mediator responded with error.', [ 'product_id' => $product_id, 'code' => $code, 'payload' => $payload ] );
 
             return [

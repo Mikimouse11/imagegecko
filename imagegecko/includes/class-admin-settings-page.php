@@ -104,9 +104,9 @@ class Admin_Settings_Page {
             class="regular-text"
             value="<?php echo \esc_attr( $api_key ); ?>"
             autocomplete="off"
-            placeholder="<?php \esc_attr_e( 'Paste ContentGecko API key here', 'imagegecko' ); ?>"
+            placeholder="<?php \esc_attr_e( 'Paste the ContentGecko API key from your welcome email', 'imagegecko' ); ?>"
         />
-        <p class="description"><?php \esc_html_e( 'Generate this key inside your ContentGecko dashboard, then paste it here. It is stored encrypted in your database.', 'imagegecko' ); ?></p>
+        <p class="description"><?php \esc_html_e( 'You received this key in the email that included your plugin ZIP. Copy it from that email and paste it here. It is stored encrypted in your database.', 'imagegecko' ); ?></p>
         <?php
     }
 
