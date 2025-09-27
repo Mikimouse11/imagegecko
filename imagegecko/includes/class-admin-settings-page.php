@@ -323,6 +323,14 @@ class Admin_Settings_Page {
                     'going'                   => \__( 'Working…', 'imagegecko' ),
                     'stepLocked'              => \__( 'Add your API key before running the workflow.', 'imagegecko' ),
                     'idle'                    => \__( 'Idle', 'imagegecko' ),
+                    'deleteConfirm'           => \__( 'Are you sure you want to delete this generated image? This action cannot be undone.', 'imagegecko' ),
+                    'deleteError'             => \__( 'Failed to delete image. Please try again.', 'imagegecko' ),
+                    'sourceImage'             => \__( 'Source Image', 'imagegecko' ),
+                    'generatedImage'          => \__( 'Generated Image', 'imagegecko' ),
+                    'delete'                  => \__( 'Delete', 'imagegecko' ),
+                    'deleting'                => \__( 'Deleting...', 'imagegecko' ),
+                    'clickToViewFull'         => \__( 'Click to view full size', 'imagegecko' ),
+                    'close'                   => \__( 'Close', 'imagegecko' ),
                 ],
             ]
         );

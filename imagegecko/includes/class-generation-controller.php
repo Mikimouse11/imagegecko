@@ -48,6 +48,7 @@ class Generation_Controller {
 
         \add_action( 'wp_ajax_imagegecko_start_generation', [ $this, 'ajax_start_generation' ] );
         \add_action( 'wp_ajax_imagegecko_process_product', [ $this, 'ajax_process_product' ] );
+        \add_action( 'wp_ajax_imagegecko_delete_generated_image', [ $this, 'ajax_delete_generated_image' ] );
 
         \add_action( self::CRON_HOOK, [ $this, 'process_async_job' ], 10, 1 );
         if ( \function_exists( '\as_enqueue_async_action' ) ) {
@@ -331,6 +332,9 @@ class Generation_Controller {
                 'status' => $result['status'] 
             ] );
 
+            // Get image URLs for display
+            $image_data = $this->get_image_data_for_display($product_id, $result['attachment_id'] ?? null);
+            
             \wp_send_json_success(
                 [
                     'product_id'    => $product_id,
@@ -338,6 +342,7 @@ class Generation_Controller {
                     'status'        => $result['status'],
                     'message'       => $result['message'],
                     'attachment_id' => $result['attachment_id'] ?? null,
+                    'images'        => $image_data,
                 ]
             );
             
@@ -563,5 +568,117 @@ class Generation_Controller {
                 'message' => $message,
             ]
         );
+    }
+    
+    public function ajax_delete_generated_image(): void {
+        try {
+            $this->verify_ajax_request();
+
+            $attachment_id = isset( $_POST['attachment_id'] ) ? (int) $_POST['attachment_id'] : 0;
+
+            if ( $attachment_id <= 0 ) {
+                $this->logger->error( 'AJAX delete generated image failed: Invalid attachment ID.', [ 'provided_id' => $_POST['attachment_id'] ?? 'not_set' ] );
+                \wp_send_json_error( [ 'message' => \__( 'Invalid attachment identifier.', 'imagegecko' ) ], 400 );
+            }
+
+            // Verify this is actually a generated image
+            $is_generated = \get_post_meta( $attachment_id, '_imagegecko_generated', true );
+            if ( ! $is_generated ) {
+                $this->logger->error( 'AJAX delete generated image failed: Not a generated image.', [ 'attachment_id' => $attachment_id ] );
+                \wp_send_json_error( [ 'message' => \__( 'This is not a generated image.', 'imagegecko' ) ], 400 );
+            }
+
+            $this->logger->info( 'Deleting generated image via AJAX.', [ 'attachment_id' => $attachment_id ] );
+            
+            // Get the product ID before deleting the attachment
+            $product_id = (int) \get_post_meta( $attachment_id, '_imagegecko_product_id', true );
+            
+            // Check if this is the current featured image
+            $is_featured_image = false;
+            if ( $product_id ) {
+                $current_featured_id = (int) \get_post_thumbnail_id( $product_id );
+                $is_featured_image = ( $current_featured_id === $attachment_id );
+            }
+            
+            // Delete the attachment
+            $deleted = \wp_delete_attachment( $attachment_id, true );
+            
+            if ( ! $deleted ) {
+                $this->logger->error( 'Failed to delete generated image.', [ 'attachment_id' => $attachment_id ] );
+                \wp_send_json_error( [ 'message' => \__( 'Failed to delete the image.', 'imagegecko' ) ], 500 );
+            }
+
+            $this->logger->info( 'Generated image deleted successfully.', [ 'attachment_id' => $attachment_id ] );
+            
+            // If the deleted image was the featured image, restore the original
+            if ( $is_featured_image && $product_id ) {
+                $this->image_handler->restore_original_featured_image( $product_id );
+            }
+            
+            // Clean up product meta if this was the current generated attachment
+            if ( $product_id ) {
+                $current_generated = (int) \get_post_meta( $product_id, '_imagegecko_generated_attachment', true );
+                if ( $current_generated === $attachment_id ) {
+                    \delete_post_meta( $product_id, '_imagegecko_generated_attachment' );
+                    \delete_post_meta( $product_id, '_imagegecko_generated_at' );
+                }
+            }
+
+            \wp_send_json_success( [
+                'message' => \__( 'Image deleted successfully.', 'imagegecko' ),
+                'attachment_id' => $attachment_id,
+                'featured_restored' => $is_featured_image,
+            ] );
+            
+        } catch ( \Exception $e ) {
+            $this->logger->error( 'AJAX delete generated image failed with exception.', [ 
+                'attachment_id' => $attachment_id ?? 0, 
+                'error' => $e->getMessage(), 
+                'trace' => $e->getTraceAsString() 
+            ] );
+            \wp_send_json_error( [ 'message' => \__( 'An error occurred while deleting the image. Please try again.', 'imagegecko' ) ], 500 );
+        }
+    }
+    
+    /**
+     * Get image data for display in the progress tracker.
+     */
+    private function get_image_data_for_display(int $product_id, ?int $generated_attachment_id): array {
+        $image_data = [
+            'source' => null,
+            'generated' => null,
+        ];
+        
+        // Get source image (the original image that was used for generation)
+        $source_image_data = $this->image_handler->prepare_product_image($product_id);
+        if (!\is_wp_error($source_image_data) && isset($source_image_data['attachment_id'])) {
+            $source_attachment_id = $source_image_data['attachment_id'];
+            $source_url = \wp_get_attachment_image_url($source_attachment_id, 'large');
+            $source_full_url = \wp_get_attachment_image_url($source_attachment_id, 'full');
+            if ($source_url) {
+                $image_data['source'] = [
+                    'url' => $source_url,
+                    'full_url' => $source_full_url ?: $source_url,
+                    'attachment_id' => $source_attachment_id,
+                    'title' => \get_the_title($source_attachment_id) ?: 'Source Image',
+                ];
+            }
+        }
+        
+        // Get generated image if available
+        if ($generated_attachment_id) {
+            $generated_url = \wp_get_attachment_image_url($generated_attachment_id, 'large');
+            $generated_full_url = \wp_get_attachment_image_url($generated_attachment_id, 'full');
+            if ($generated_url) {
+                $image_data['generated'] = [
+                    'url' => $generated_url,
+                    'full_url' => $generated_full_url ?: $generated_url,
+                    'attachment_id' => $generated_attachment_id,
+                    'title' => \get_the_title($generated_attachment_id) ?: 'Generated Image',
+                ];
+            }
+        }
+        
+        return $image_data;
     }
 }

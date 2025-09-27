@@ -115,6 +115,11 @@ class Image_Handler {
             return $attachment_id;
         }
 
+        // Mark this attachment as AI-generated
+        \update_post_meta( $attachment_id, '_imagegecko_generated', true );
+        \update_post_meta( $attachment_id, '_imagegecko_product_id', $product_id );
+        \update_post_meta( $attachment_id, '_imagegecko_generated_date', current_time( 'mysql' ) );
+        
         // First, add the generated image to the gallery
         $this->append_to_gallery( $product_id, $attachment_id );
         
@@ -292,6 +297,36 @@ class Image_Handler {
         }
         
         return array_filter( $generated_ids );
+    }
+    
+    /**
+     * Restore the original featured image after deleting a generated image.
+     */
+    public function restore_original_featured_image( int $product_id ): bool {
+        // Find the first original image that can serve as featured image
+        $original_attachment_id = $this->find_original_image( $product_id );
+        
+        if ( ! $original_attachment_id ) {
+            $this->logger->warning( 'No original image found to restore as featured image.', [ 'product_id' => $product_id ] );
+            return false;
+        }
+        
+        // Set the original image as featured image
+        $result = \set_post_thumbnail( $product_id, $original_attachment_id );
+        
+        if ( $result ) {
+            $this->logger->info( 'Restored original featured image after deletion.', [ 
+                'product_id' => $product_id, 
+                'restored_attachment_id' => $original_attachment_id 
+            ] );
+        } else {
+            $this->logger->error( 'Failed to restore original featured image.', [ 
+                'product_id' => $product_id, 
+                'attempted_attachment_id' => $original_attachment_id 
+            ] );
+        }
+        
+        return $result;
     }
 
     /**

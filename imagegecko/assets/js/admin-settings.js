@@ -483,12 +483,12 @@
                 break;
         }
 
-        this.updateItemStatus(productId, statusText, cssClass, message);
+        this.updateItemStatus(productId, statusText, cssClass, message, data.images);
         this.updateSummary();
         this.processNext();
     };
 
-    GenerationRunner.prototype.updateItemStatus = function (productId, text, cssClass, message) {
+    GenerationRunner.prototype.updateItemStatus = function (productId, text, cssClass, message, images) {
         var $item = this.items[productId];
         if (!$item || !$item.length) {
             return;
@@ -506,6 +506,11 @@
             $item.find('.imagegecko-progress__message').text(message);
         } else {
             $item.find('.imagegecko-progress__message').text('');
+        }
+        
+        // Add images if available and status is completed
+        if (images && cssClass === 'is-success') {
+            this.displayImages($item, images);
         }
     };
 
@@ -528,6 +533,289 @@
     GenerationRunner.prototype.finish = function () {
         this.setButtonState('idle');
         this.updateSummary(true);
+    };
+    
+    GenerationRunner.prototype.displayImages = function ($item, images) {
+        var self = this;
+        
+        // Check if images container already exists
+        var $imagesContainer = $item.find('.imagegecko-progress__images');
+        if ($imagesContainer.length) {
+            return; // Already displayed
+        }
+        
+        $imagesContainer = $('<div>', {
+            class: 'imagegecko-progress__images'
+        });
+        
+        // Add source image if available
+        if (images.source && images.source.url) {
+            var $sourceContainer = $('<div>', {
+                class: 'imagegecko-progress__image-container'
+            });
+            
+            $('<h4>', {
+                class: 'imagegecko-progress__image-title',
+                text: self.i18n.sourceImage || 'Source Image'
+            }).appendTo($sourceContainer);
+            
+            var $sourceImg = $('<img>', {
+                src: images.source.url,
+                class: 'imagegecko-progress__image',
+                alt: 'Source image',
+                title: self.i18n.clickToViewFull || 'Click to view full size'
+            });
+            
+            $sourceImg.on('click', function() {
+                self.openImageModal(images.source.full_url, images.source.title || 'Source Image');
+            });
+            
+            $sourceImg.appendTo($sourceContainer);
+            
+            $imagesContainer.append($sourceContainer);
+        }
+        
+        // Add generated image if available
+        if (images.generated && images.generated.url) {
+            var $generatedContainer = $('<div>', {
+                class: 'imagegecko-progress__image-container'
+            });
+            
+            var $titleContainer = $('<div>', {
+                class: 'imagegecko-progress__image-header'
+            });
+            
+            $('<h4>', {
+                class: 'imagegecko-progress__image-title',
+                text: self.i18n.generatedImage || 'Generated Image'
+            }).appendTo($titleContainer);
+            
+            var $deleteBtn = $('<button>', {
+                type: 'button',
+                class: 'button button-small imagegecko-delete-btn',
+                text: self.i18n.delete || 'Delete',
+                'data-attachment-id': images.generated.attachment_id
+            });
+            
+            $titleContainer.append($deleteBtn);
+            $generatedContainer.append($titleContainer);
+            
+            var $generatedImg = $('<img>', {
+                src: images.generated.url,
+                class: 'imagegecko-progress__image',
+                alt: 'Generated image',
+                title: self.i18n.clickToViewFull || 'Click to view full size'
+            });
+            
+            $generatedImg.on('click', function() {
+                self.openImageModal(images.generated.full_url, images.generated.title || 'Generated Image', images.generated.attachment_id);
+            });
+            
+            $generatedImg.appendTo($generatedContainer);
+            
+            $imagesContainer.append($generatedContainer);
+            
+            // Bind delete functionality
+            $deleteBtn.on('click', function(e) {
+                e.preventDefault();
+                self.deleteGeneratedImage($(this), images.generated.attachment_id);
+            });
+        }
+        
+        $item.append($imagesContainer);
+    };
+    
+    GenerationRunner.prototype.deleteGeneratedImage = function ($button, attachmentId) {
+        var self = this;
+        
+        if (!confirm(self.i18n.deleteConfirm || 'Are you sure you want to delete this generated image? This action cannot be undone.')) {
+            return;
+        }
+        
+        $button.prop('disabled', true).text(self.i18n.deleting || 'Deleting...');
+        
+        $.post(this.ajaxUrl, {
+            action: 'imagegecko_delete_generated_image',
+            nonce: this.nonce,
+            attachment_id: attachmentId
+        }).done(function (response) {
+            if (response && response.success) {
+                // Remove the generated image container
+                $button.closest('.imagegecko-progress__image-container').fadeOut(300, function() {
+                    $(this).remove();
+                });
+                
+                // Show feedback if featured image was restored
+                if (response.data && response.data.featured_restored) {
+                    // You could add a temporary success message here if desired
+                    console.log('ImageGecko: Featured image restored to original');
+                }
+            } else {
+                var message = response && response.data && response.data.message 
+                    ? response.data.message 
+                    : (self.i18n.deleteError || 'Failed to delete image.');
+                alert(message);
+                $button.prop('disabled', false).text(self.i18n.delete || 'Delete');
+            }
+        }).fail(function (xhr, status, error) {
+            console.error('ImageGecko: Delete image AJAX failed:', {
+                status: status,
+                error: error,
+                responseText: xhr.responseText
+            });
+            alert(self.i18n.deleteError || 'Failed to delete image. Please try again.');
+            $button.prop('disabled', false).text(self.i18n.delete || 'Delete');
+        });
+    };
+    
+    GenerationRunner.prototype.openImageModal = function(imageUrl, title, attachmentId) {
+        var self = this;
+        
+        // Remove existing modal if any
+        $('.imagegecko-image-modal').remove();
+        
+        // Create modal structure
+        var $modal = $('<div>', {
+            class: 'imagegecko-image-modal'
+        });
+        
+        var $content = $('<div>', {
+            class: 'imagegecko-modal-content'
+        });
+        
+        // Modal header
+        var $header = $('<div>', {
+            class: 'imagegecko-modal-header'
+        });
+        
+        $('<h3>', {
+            class: 'imagegecko-modal-title',
+            text: title
+        }).appendTo($header);
+        
+        var $closeBtn = $('<button>', {
+            class: 'imagegecko-modal-close',
+            type: 'button',
+            'aria-label': self.i18n.close || 'Close',
+            html: '&times;'
+        });
+        
+        $header.append($closeBtn);
+        $content.append($header);
+        
+        // Modal image
+        var $img = $('<img>', {
+            src: imageUrl,
+            class: 'imagegecko-modal-image',
+            alt: title
+        });
+        
+        $content.append($img);
+        
+        // Modal actions (only for generated images)
+        if (attachmentId) {
+            var $actions = $('<div>', {
+                class: 'imagegecko-modal-actions'
+            });
+            
+            var $deleteBtn = $('<button>', {
+                type: 'button',
+                class: 'button imagegecko-delete-btn',
+                text: self.i18n.delete || 'Delete',
+                'data-attachment-id': attachmentId
+            });
+            
+            $actions.append($deleteBtn);
+            $content.append($actions);
+            
+            // Bind delete functionality
+            $deleteBtn.on('click', function(e) {
+                e.preventDefault();
+                var $modalButton = $(this);
+                
+                if (!confirm(self.i18n.deleteConfirm || 'Are you sure you want to delete this generated image? This action cannot be undone.')) {
+                    return;
+                }
+                
+                $modalButton.prop('disabled', true).text(self.i18n.deleting || 'Deleting...');
+                
+                $.post(self.ajaxUrl, {
+                    action: 'imagegecko_delete_generated_image',
+                    nonce: self.nonce,
+                    attachment_id: attachmentId
+                }).done(function (response) {
+                    if (response && response.success) {
+                        // Close modal first
+                        $modal.removeClass('is-open');
+                        setTimeout(function() {
+                            $modal.remove();
+                        }, 300);
+                        
+                        // Remove the generated image container from the progress list
+                        $('.imagegecko-progress__image-container').each(function() {
+                            var $container = $(this);
+                            if ($container.find('img[src="' + imageUrl + '"]').length) {
+                                $container.fadeOut(300, function() {
+                                    $(this).remove();
+                                });
+                            }
+                        });
+                        
+                        // Show feedback if featured image was restored
+                        if (response.data && response.data.featured_restored) {
+                            console.log('ImageGecko: Featured image restored to original');
+                        }
+                    } else {
+                        var message = response && response.data && response.data.message 
+                            ? response.data.message 
+                            : (self.i18n.deleteError || 'Failed to delete image.');
+                        alert(message);
+                        $modalButton.prop('disabled', false).text(self.i18n.delete || 'Delete');
+                    }
+                }).fail(function (xhr, status, error) {
+                    console.error('ImageGecko: Delete image AJAX failed:', {
+                        status: status,
+                        error: error,
+                        responseText: xhr.responseText
+                    });
+                    alert(self.i18n.deleteError || 'Failed to delete image. Please try again.');
+                    $modalButton.prop('disabled', false).text(self.i18n.delete || 'Delete');
+                });
+            });
+        }
+        
+        $modal.append($content);
+        $('body').append($modal);
+        
+        // Close modal functionality
+        var closeModal = function() {
+            $modal.removeClass('is-open');
+            setTimeout(function() {
+                $modal.remove();
+            }, 300);
+        };
+        
+        $closeBtn.on('click', closeModal);
+        
+        // Close on backdrop click
+        $modal.on('click', function(e) {
+            if (e.target === $modal[0]) {
+                closeModal();
+            }
+        });
+        
+        // Close on escape key
+        $(document).on('keyup.imagegecko-modal', function(e) {
+            if (e.keyCode === 27) { // Escape key
+                closeModal();
+                $(document).off('keyup.imagegecko-modal');
+            }
+        });
+        
+        // Show modal
+        setTimeout(function() {
+            $modal.addClass('is-open');
+        }, 10);
     };
 
     $(function () {
