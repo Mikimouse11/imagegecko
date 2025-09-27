@@ -1,0 +1,10 @@
+# ImageGecko WooCommerce Plugin Plan
+
+- **Goal**: Replace plain white-background WooCommerce product photos with AI-generated lifestyle shots returned by the ContentGecko mediator endpoint.
+- **Core Flow**: Admin selects products → plugin POSTs product image + metadata to `https://dev.api.contentgecko.io/product-image` → receives generated model shot → stores in Media Library and assigns as product/variation image.
+- **Plugin Architecture**: WordPress plugin (PHP) with onboarding wizard + settings page, Action Scheduler-backed background jobs, custom REST route for progress polling, logging table for request history, reusable service classes for API, storage, and WooCommerce integration.
+- **Admin Settings**: Post-install wizard instructs user to obtain ContentGecko API key, provides field to paste/validate key (stored encrypted in `wp_options` or via Secrets API), and lets merchants configure default style prompt plus per-product/per-category targeting using multiselect controls; settings saved with `settings_fields` and surfaced in WooCommerce product screens.
+- **Mediator API Integration**: Store API key securely, wrap POST calls with retries/exponential backoff, stream upload source image via multipart form, parse response payload (image URL or binary), handle error codes + rate limiting, surface status in admin UI.
+- **Image Handling**: Validate source image (dimensions/background), persist generated asset to Media Library via `wp_insert_attachment`, set as featured image or gallery slot, auto-generate alt text, allow manual approval/rollback before publish.
+- **MVP Milestones**: (1) Plugin scaffold + onboarding/settings UI, (2) Product action wiring + job queue, (3) Mediator API client + secure storage pipeline, (4) Approval workflow + admin notifications, (5) QA across themes/CDNs + WooCommerce variations.
+- **Future Enhancements**: Batch scheduler with throttling, prompt/style presets per category, webhook callback support, analytics dashboard, A/B tests comparing generated vs. original imagery.

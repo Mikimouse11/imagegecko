@@ -1,0 +1,56 @@
+.imagegecko-autocomplete {
+    max-width: 640px;
+}
+
+.imagegecko-autocomplete__selections {
+    list-style: none;
+    margin: 0 0 12px;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.imagegecko-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #f0f0f1;
+    border: 1px solid #dcdcde;
+}
+
+.imagegecko-pill__label {
+    margin: 0;
+}
+
+.imagegecko-pill__remove {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+    color: #50575e;
+}
+
+.imagegecko-pill__remove:hover,
+.imagegecko-pill__remove:focus {
+    color: #1d2327;
+}
+
+.imagegecko-autocomplete__controls {
+    margin-bottom: 8px;
+}
+
+.imagegecko-autocomplete__input {
+    min-width: 320px;
+}
+
+.imagegecko-autocomplete__empty {
+    margin: 0 0 8px;
+    color: #646970;
+}
+
+.imagegecko-autocomplete__summary {
+    margin: 0 0 8px;
+}
