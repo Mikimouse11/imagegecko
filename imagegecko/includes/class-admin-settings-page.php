@@ -90,13 +90,6 @@ class Admin_Settings_Page {
             'imagegecko_generation'
         );
 
-        \add_settings_field(
-            'imagegecko_batch_size',
-            \__( 'Batch Size', 'imagegecko' ),
-            [ $this, 'render_batch_size_field' ],
-            self::MENU_SLUG,
-            'imagegecko_generation'
-        );
     }
 
     public function render_generation_intro(): void {
@@ -286,23 +279,6 @@ class Admin_Settings_Page {
         <?php
     }
 
-    public function render_batch_size_field(): void {
-        $settings = $this->settings->all();
-        $batch_size = isset( $settings['batch_size'] ) ? (int) $settings['batch_size'] : 10;
-        ?>
-        <input
-            type="number"
-            name="<?php echo \esc_attr( Settings::OPTION_KEY ); ?>[batch_size]"
-            id="imagegecko_batch_size"
-            class="small-text"
-            value="<?php echo \esc_attr( $batch_size ); ?>"
-            min="1"
-            max="20"
-            step="1"
-        />
-        <p class="description"><?php \esc_html_e( 'Number of products to process simultaneously (1-20). Higher values speed up processing but use more server resources.', 'imagegecko' ); ?></p>
-        <?php
-    }
 
     public function enqueue_assets( $hook ): void {
         if ( false === strpos( (string) $hook, self::MENU_SLUG ) ) {
@@ -331,7 +307,6 @@ class Admin_Settings_Page {
                 'ajaxUrl' => \admin_url( 'admin-ajax.php' ),
                 'nonce'   => \wp_create_nonce( self::NONCE_ACTION ),
                 'hasApiKey' => '' !== $this->settings->get_api_key(),
-                'batchSize' => $this->settings->get_batch_size(),
                 'i18n'    => [
                     'noResults' => \__( 'No matches found.', 'imagegecko' ),
                     'duplicate' => \__( 'Already selected.', 'imagegecko' ),

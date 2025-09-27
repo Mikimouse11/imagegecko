@@ -26,7 +26,6 @@ class Settings {
                 'default_prompt'      => '',
                 'selected_categories' => [],
                 'selected_products'   => [],
-                'batch_size'          => 10,
             ];
             $this->cache = \wp_parse_args( \get_option( self::OPTION_KEY, [] ), $defaults );
         }
@@ -61,16 +60,6 @@ class Settings {
         return isset( $settings['selected_categories'] ) ? array_map( 'intval', (array) $settings['selected_categories'] ) : [];
     }
 
-    /**
-     * Get batch size for simultaneous processing.
-     */
-    public function get_batch_size(): int {
-        $settings = $this->all();
-        $batch_size = isset( $settings['batch_size'] ) ? (int) $settings['batch_size'] : 10;
-        
-        // Ensure batch size is within reasonable bounds
-        return max( 1, min( 20, $batch_size ) );
-    }
 
     /**
      * Return sanitized API key (decrypted when possible).
@@ -137,7 +126,6 @@ class Settings {
             'default_prompt'      => isset( $settings['default_prompt'] ) ? \wp_kses_post( $settings['default_prompt'] ) : '',
             'selected_categories' => isset( $settings['selected_categories'] ) ? array_map( '\absint', (array) $settings['selected_categories'] ) : [],
             'selected_products'   => isset( $settings['selected_products'] ) ? array_map( '\absint', (array) $settings['selected_products'] ) : [],
-            'batch_size'          => isset( $settings['batch_size'] ) ? max( 1, min( 20, (int) $settings['batch_size'] ) ) : 10,
         ];
     }
 
