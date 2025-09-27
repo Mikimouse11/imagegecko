@@ -255,9 +255,15 @@
         this.setButtonState('busy');
         this.resetProgress();
 
-        $.post(this.ajaxUrl, {
-            action: 'imagegecko_start_generation',
-            nonce: this.nonce
+        // First, save the configuration
+        this.saveConfiguration().then(function() {
+            console.log('ImageGecko: Configuration saved, starting generation');
+            
+            // Now start the generation process
+            return $.post(self.ajaxUrl, {
+                action: 'imagegecko_start_generation',
+                nonce: self.nonce
+            });
         }).done(function (response) {
             console.log('ImageGecko: Start generation response:', response);
             
@@ -290,6 +296,64 @@
                 statusCode: xhr.status
             });
             self.handleStartError();
+        }).catch(function(error) {
+            console.error('ImageGecko: Configuration save or generation start failed:', error);
+            self.handleStartError();
+        });
+    };
+
+    GenerationRunner.prototype.saveConfiguration = function () {
+        var self = this;
+        var $form = $('#imagegecko-config-form');
+        
+        if (!$form.length) {
+            console.warn('ImageGecko: Configuration form not found, skipping save');
+            return $.Deferred().resolve().promise();
+        }
+
+        console.log('ImageGecko: Saving configuration');
+        
+        // Serialize form data
+        var formData = $form.serializeArray();
+        var config = {};
+        
+        // Convert form data to nested object structure
+        formData.forEach(function(field) {
+            // Handle array fields like selected_categories[] and selected_products[]
+            var name = field.name;
+            var value = field.value;
+            
+            // Extract the actual field name from WordPress option format
+            // e.g., "imagegecko_settings[selected_categories][]" -> "selected_categories"
+            var matches = name.match(/imagegecko_settings\[([^\]]+)\](\[\])?/);
+            if (matches) {
+                var fieldName = matches[1];
+                var isArray = !!matches[2];
+                
+                if (isArray) {
+                    if (!config[fieldName]) {
+                        config[fieldName] = [];
+                    }
+                    config[fieldName].push(value);
+                } else {
+                    config[fieldName] = value;
+                }
+            }
+        });
+
+        console.log('ImageGecko: Sending configuration:', config);
+
+        return $.post(this.ajaxUrl, {
+            action: 'imagegecko_save_config',
+            nonce: this.nonce,
+            config: config
+        }).fail(function(xhr, status, error) {
+            console.error('ImageGecko: Configuration save failed:', {
+                status: status,
+                error: error,
+                responseText: xhr.responseText
+            });
+            throw new Error('Configuration save failed');
         });
     };
 

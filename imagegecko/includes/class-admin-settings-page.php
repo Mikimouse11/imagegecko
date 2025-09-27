@@ -37,6 +37,7 @@ class Admin_Settings_Page {
         \add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_assets' ] );
         \add_action( 'wp_ajax_imagegecko_search_categories', [ $this, 'ajax_search_categories' ] );
         \add_action( 'wp_ajax_imagegecko_search_products', [ $this, 'ajax_search_products' ] );
+        \add_action( 'wp_ajax_imagegecko_save_config', [ $this, 'ajax_save_config' ] );
         \add_action( 'admin_post_imagegecko_save_api_key', [ $this, 'handle_api_key_submission' ] );
     }
 
@@ -413,6 +414,28 @@ class Admin_Settings_Page {
         \wp_send_json_success( $results );
     }
 
+    public function ajax_save_config(): void {
+        $this->guard_ajax_request();
+
+        $config_data = isset( $_POST['config'] ) ? (array) $_POST['config'] : [];
+        
+        $this->logger->info( 'Saving configuration via AJAX.', [ 'config_keys' => array_keys( $config_data ) ] );
+
+        // Sanitize the settings using the same method as the regular form submission
+        $sanitized = $this->settings->sanitize_settings( $config_data );
+        
+        // Save the settings
+        $saved = \update_option( Settings::OPTION_KEY, $sanitized );
+        
+        if ( $saved ) {
+            $this->logger->info( 'Configuration saved successfully via AJAX.' );
+            \wp_send_json_success( [ 'message' => \__( 'Configuration saved.', 'imagegecko' ) ] );
+        } else {
+            $this->logger->error( 'Failed to save configuration via AJAX.' );
+            \wp_send_json_error( [ 'message' => \__( 'Failed to save configuration.', 'imagegecko' ) ], 500 );
+        }
+    }
+
     private function guard_ajax_request(): void {
         $nonce = isset( $_REQUEST['nonce'] ) ? (string) $_REQUEST['nonce'] : '';
 
@@ -487,16 +510,15 @@ class Admin_Settings_Page {
                 <section class="imagegecko-step imagegecko-step--configure<?php echo $has_api_key ? '' : ' imagegecko-step--disabled'; ?>">
                     <h2><?php \esc_html_e( 'Step 2: Choose Products & Styles', 'imagegecko' ); ?></h2>
                     <?php if ( $has_api_key ) : ?>
-                        <form method="post" action="options.php">
+                        <form method="post" action="options.php" id="imagegecko-config-form">
                             <?php
                             \settings_fields( self::OPTION_GROUP );
                             \do_settings_sections( self::MENU_SLUG );
-                            \submit_button( \__( 'Save Configuration', 'imagegecko' ), 'secondary', 'submit', false );
                             ?>
                         </form>
                         <section class="imagegecko-step imagegecko-step--run">
-                            <h2><?php \esc_html_e( 'Step 3: Enhance Products', 'imagegecko' ); ?></h2>
-                            <p><?php \esc_html_e( 'When you are ready, click GO. ImageGecko will generate new lifestyle imagery and update each product automatically.', 'imagegecko' ); ?></p>
+                            <h2><?php \esc_html_e( 'Step 3: Save & Enhance Products', 'imagegecko' ); ?></h2>
+                            <p><?php \esc_html_e( 'When you are ready, click GO. ImageGecko will save your configuration and generate new lifestyle imagery for each product automatically.', 'imagegecko' ); ?></p>
                             <button type="button" class="button button-primary" id="imagegecko-go-button" data-state="idle"><?php \esc_html_e( 'GO', 'imagegecko' ); ?></button>
                             <div id="imagegecko-progress" class="imagegecko-progress" style="display:none;">
                                 <p class="imagegecko-progress__summary"></p>
