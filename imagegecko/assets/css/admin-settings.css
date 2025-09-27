@@ -2,6 +2,10 @@
     max-width: 640px;
 }
 
+#imagegecko_batch_size {
+    width: 80px;
+}
+
 .imagegecko-steps {
     display: grid;
     gap: 32px;

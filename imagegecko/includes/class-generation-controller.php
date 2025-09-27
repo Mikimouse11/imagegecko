@@ -48,6 +48,7 @@ class Generation_Controller {
 
         \add_action( 'wp_ajax_imagegecko_start_generation', [ $this, 'ajax_start_generation' ] );
         \add_action( 'wp_ajax_imagegecko_process_product', [ $this, 'ajax_process_product' ] );
+        \add_action( 'wp_ajax_imagegecko_process_batch', [ $this, 'ajax_process_batch' ] );
         \add_action( 'wp_ajax_imagegecko_delete_generated_image', [ $this, 'ajax_delete_generated_image' ] );
 
         \add_action( self::CRON_HOOK, [ $this, 'process_async_job' ], 10, 1 );
@@ -353,6 +354,96 @@ class Generation_Controller {
                 'trace' => $e->getTraceAsString() 
             ] );
             \wp_send_json_error( [ 'message' => \__( 'An error occurred while processing the product. Please check the logs and try again.', 'imagegecko' ) ], 500 );
+        }
+    }
+
+    public function ajax_process_batch(): void {
+        try {
+            $this->verify_ajax_request();
+
+            $product_ids = isset( $_POST['product_ids'] ) ? (array) $_POST['product_ids'] : [];
+            $product_ids = array_map( 'intval', array_filter( $product_ids ) );
+
+            if ( empty( $product_ids ) ) {
+                $this->logger->error( 'AJAX process batch failed: No valid product IDs provided.' );
+                \wp_send_json_error( [ 'message' => \__( 'No valid product identifiers provided.', 'imagegecko' ) ], 400 );
+            }
+
+            // Limit batch size for performance and API considerations
+            $configured_batch_size = $this->settings->get_batch_size();
+            $batch_size = min( count( $product_ids ), $configured_batch_size );
+            $product_ids = array_slice( $product_ids, 0, $batch_size );
+
+            $this->logger->info( 'Processing batch via AJAX.', [ 
+                'product_ids' => $product_ids, 
+                'batch_size' => count( $product_ids ) 
+            ] );
+
+            $results = [];
+            $successful = 0;
+            $failed = 0;
+
+            // Process products in parallel using WordPress HTTP API
+            $requests = [];
+            foreach ( $product_ids as $product_id ) {
+                $requests[$product_id] = [
+                    'url' => admin_url( 'admin-ajax.php' ),
+                    'args' => [
+                        'method' => 'POST',
+                        'timeout' => 120,
+                        'body' => [
+                            'action' => 'imagegecko_process_single_internal',
+                            'product_id' => $product_id,
+                            'nonce' => wp_create_nonce( self::NONCE_ACTION ),
+                        ]
+                    ]
+                ];
+            }
+
+            // For now, process sequentially but prepare structure for parallel processing
+            foreach ( $product_ids as $product_id ) {
+                $result = $this->generate_product_now( $product_id, [ 'force' => true ] );
+                
+                if ( $result['success'] ) {
+                    $successful++;
+                } else {
+                    $failed++;
+                }
+
+                // Get image URLs for display
+                $image_data = $this->get_image_data_for_display($product_id, $result['attachment_id'] ?? null);
+                
+                $results[$product_id] = [
+                    'product_id'    => $product_id,
+                    'success'       => $result['success'],
+                    'status'        => $result['status'],
+                    'message'       => $result['message'],
+                    'attachment_id' => $result['attachment_id'] ?? null,
+                    'images'        => $image_data,
+                ];
+            }
+
+            $this->logger->info( 'AJAX batch processing completed.', [ 
+                'total_processed' => count( $product_ids ),
+                'successful' => $successful,
+                'failed' => $failed
+            ] );
+
+            \wp_send_json_success([
+                'results' => $results,
+                'summary' => [
+                    'total' => count( $product_ids ),
+                    'successful' => $successful,
+                    'failed' => $failed,
+                ]
+            ]);
+            
+        } catch ( \Exception $e ) {
+            $this->logger->error( 'AJAX batch processing failed with exception.', [ 
+                'error' => $e->getMessage(), 
+                'trace' => $e->getTraceAsString() 
+            ] );
+            \wp_send_json_error( [ 'message' => \__( 'An error occurred while processing the batch. Please check the logs and try again.', 'imagegecko' ) ], 500 );
         }
     }
 

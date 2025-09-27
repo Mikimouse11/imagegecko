@@ -201,6 +201,8 @@
         this.completed = 0;
         this.failed = 0;
         this.skipped = 0;
+        this.batchSize = options.batchSize || 10; // Process products simultaneously
+        this.activeBatches = 0;
 
         this.bindEvents();
     }
@@ -241,6 +243,7 @@
         this.completed = 0;
         this.failed = 0;
         this.skipped = 0;
+        this.activeBatches = 0;
 
         this.$summary.text('');
         this.$list.empty();
@@ -412,39 +415,98 @@
     GenerationRunner.prototype.processNext = function () {
         var self = this;
 
-        if (!this.queue.length) {
+        // Check if we're done
+        if (!this.queue.length && this.activeBatches === 0) {
             this.finish();
             return;
         }
 
-        var product = this.queue.shift();
-        var productId = product.id;
+        // Don't start new batches if we have none left to process
+        if (!this.queue.length) {
+            return;
+        }
 
-        this.updateItemStatus(productId, this.i18n.processing || 'Processing…', 'is-processing');
+        // Create a batch of products to process
+        var batch = [];
+        var batchSize = Math.min(this.batchSize, this.queue.length);
+        
+        for (var i = 0; i < batchSize; i++) {
+            if (this.queue.length > 0) {
+                batch.push(this.queue.shift());
+            }
+        }
+
+        if (batch.length === 0) {
+            return;
+        }
+
+        this.activeBatches++;
+
+        // Mark all products in batch as processing
+        batch.forEach(function(product) {
+            self.updateItemStatus(product.id, self.i18n.processing || 'Processing…', 'is-processing');
+        });
+
+        console.log('ImageGecko: Processing batch of', batch.length, 'products:', batch.map(function(p) { return p.id; }));
+
+        // Extract product IDs for the batch request
+        var productIds = batch.map(function(product) { return product.id; });
 
         $.post(this.ajaxUrl, {
-            action: 'imagegecko_process_product',
+            action: 'imagegecko_process_batch',
             nonce: this.nonce,
-            product_id: productId
+            product_ids: productIds
         }).done(function (response) {
-            console.log('ImageGecko: Process product response for', productId, ':', response);
+            console.log('ImageGecko: Batch process response:', response);
             
-            if (!response || !response.success || !response.data) {
-                console.error('ImageGecko: Invalid process response for product', productId, ':', response);
-                self.handleProcessFailure(productId);
+            self.activeBatches--;
+
+            if (!response || !response.success || !response.data || !response.data.results) {
+                console.error('ImageGecko: Invalid batch response:', response);
+                // Handle failure for all products in batch
+                batch.forEach(function(product) {
+                    self.handleProcessFailure(product.id);
+                });
+                self.processNext(); // Continue with next batch
                 return;
             }
 
-            self.handleProcessResult(productId, response.data);
+            // Handle individual results
+            var results = response.data.results;
+            for (var productId in results) {
+                if (results.hasOwnProperty(productId)) {
+                    self.handleProcessResult(parseInt(productId), results[productId]);
+                }
+            }
+
+            // Process next batch
+            self.processNext();
         }).fail(function (xhr, status, error) {
-            console.error('ImageGecko: Process product AJAX failed for', productId, ':', {
+            console.error('ImageGecko: Batch process AJAX failed:', {
                 status: status,
                 error: error,
                 responseText: xhr.responseText,
                 statusCode: xhr.status
             });
-            self.handleProcessFailure(productId);
+            
+            self.activeBatches--;
+            
+            // Handle failure for all products in batch
+            batch.forEach(function(product) {
+                self.handleProcessFailure(product.id);
+            });
+            
+            // Continue with next batch
+            self.processNext();
         });
+
+        // If we still have items in queue, start processing the next batch
+        if (this.queue.length > 0) {
+            // Small delay to prevent overwhelming the server
+            setTimeout(function() {
+                self.processNext();
+            }, 100);
+        }
     };
 
     GenerationRunner.prototype.handleProcessFailure = function (productId) {
@@ -485,7 +547,6 @@
 
         this.updateItemStatus(productId, statusText, cssClass, message, data.images);
         this.updateSummary();
-        this.processNext();
     };
 
     GenerationRunner.prototype.updateItemStatus = function (productId, text, cssClass, message, images) {
@@ -527,7 +588,15 @@
         }
 
         var progressTemplate = this.i18n.summaryProgress || '%1$d of %2$d products completed';
-        this.$summary.text(progressTemplate.replace('%1$d', this.completed).replace('%2$d', this.total));
+        var progressText = progressTemplate.replace('%1$d', this.completed + this.failed + this.skipped).replace('%2$d', this.total);
+        
+        // Add batch processing info if we have active batches
+        if (this.activeBatches > 0) {
+            var batchInfo = this.i18n.batchProcessing || ' (Processing %d batches simultaneously)';
+            progressText += batchInfo.replace('%d', this.activeBatches);
+        }
+        
+        this.$summary.text(progressText);
     };
 
     GenerationRunner.prototype.finish = function () {
@@ -827,6 +896,7 @@
             ajaxUrl: imageGeckoAdmin.ajaxUrl,
             nonce: imageGeckoAdmin.nonce,
             hasApiKey: !!imageGeckoAdmin.hasApiKey,
+            batchSize: imageGeckoAdmin.batchSize || 10,
             i18n: imageGeckoAdmin.i18n
         });
     });
