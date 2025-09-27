@@ -46,6 +46,9 @@ class Generation_Controller {
         \add_action( 'admin_init', [ $this, 'maybe_handle_single_trigger' ] );
         \add_action( 'admin_notices', [ $this, 'render_admin_notices' ] );
 
+        \add_action( 'wp_ajax_imagegecko_start_generation', [ $this, 'ajax_start_generation' ] );
+        \add_action( 'wp_ajax_imagegecko_process_product', [ $this, 'ajax_process_product' ] );
+
         \add_action( self::CRON_HOOK, [ $this, 'process_async_job' ], 10, 1 );
         if ( \function_exists( '\as_enqueue_async_action' ) ) {
             \add_action( self::ASYNC_HOOK, [ $this, 'process_async_job' ], 10, 1 );
@@ -169,6 +172,63 @@ class Generation_Controller {
         return true;
     }
 
+    public function generate_product_now( int $product_id, array $overrides = [] ): array {
+        if ( $product_id <= 0 ) {
+            return [
+                'success' => false,
+                'status'  => 'failed',
+                'message' => \__( 'Invalid product identifier.', 'imagegecko' ),
+            ];
+        }
+
+        if ( '' === $this->settings->get_api_key() ) {
+            return [
+                'success' => false,
+                'status'  => 'blocked',
+                'message' => \__( 'Add your API key before running the workflow.', 'imagegecko' ),
+            ];
+        }
+
+        if ( ! $this->should_process_product( $product_id ) && empty( $overrides['force'] ) ) {
+            $this->logger->debug( 'Product skipped by targeting rules.', [ 'product_id' => $product_id ] );
+
+            return [
+                'success' => false,
+                'status'  => 'skipped',
+                'message' => \__( 'Product skipped by targeting rules.', 'imagegecko' ),
+            ];
+        }
+
+        $prompt = $overrides['prompt'] ?? $this->settings->get_default_prompt();
+        $prompt = \apply_filters( 'imagegecko_generation_prompt', $prompt, $product_id, $overrides );
+        $categories = isset( $overrides['categories'] ) ? (array) $overrides['categories'] : $this->settings->get_selected_categories();
+
+        $this->update_status( $product_id, 'queued' );
+        $this->update_status( $product_id, 'processing' );
+
+        $result = $this->run_generation( $product_id, $prompt, $categories );
+
+        if ( ! $result['success'] ) {
+            $message = $result['error'] ?? \__( 'Generation failed.', 'imagegecko' );
+            $this->update_status( $product_id, 'failed', $message );
+
+            return [
+                'success' => false,
+                'status'  => 'failed',
+                'message' => $message,
+            ];
+        }
+
+        $this->update_status( $product_id, 'completed' );
+
+        return [
+            'success'       => true,
+            'status'        => 'completed',
+            'message'       => \__( 'Product enhanced successfully.', 'imagegecko' ),
+            'attachment_id' => $result['attachment_id'] ?? null,
+        ];
+    }
+
     public function process_async_job( $payload ): void {
         if ( is_array( $payload ) && isset( $payload[0] ) && is_array( $payload[0] ) && ! isset( $payload['product_id'] ) ) {
             $payload = $payload[0];
@@ -183,18 +243,98 @@ class Generation_Controller {
         $prompt     = (string) ( $payload['prompt'] ?? $this->settings->get_default_prompt() );
 
         $this->update_status( $product_id, 'processing' );
+        $categories = isset( $payload['categories'] ) ? (array) $payload['categories'] : $this->settings->get_selected_categories();
 
-        $image_payload = $this->image_handler->prepare_product_image( $product_id );
-        if ( \is_wp_error( $image_payload ) ) {
-            $message = $image_payload->get_error_message();
-            $this->logger->error( 'Failed to prepare source image.', [ 'product_id' => $product_id, 'error' => $message ] );
+        $result = $this->run_generation( $product_id, $prompt, $categories );
+
+        if ( ! $result['success'] ) {
+            $message = $result['error'] ?? \__( 'Mediator request failed.', 'imagegecko' );
             $this->update_status( $product_id, 'failed', $message );
             return;
         }
 
+        $this->update_status( $product_id, 'completed' );
+    }
+
+    public function ajax_start_generation(): void {
+        $this->verify_ajax_request();
+
+        if ( '' === $this->settings->get_api_key() ) {
+            \wp_send_json_error( [ 'message' => \__( 'Add your API key before running the workflow.', 'imagegecko' ) ], 400 );
+        }
+
+        $product_ids = $this->resolve_target_products();
+
+        $products = [];
+        foreach ( $product_ids as $product_id ) {
+            $label = \get_the_title( $product_id );
+
+            if ( \function_exists( '\wc_get_product' ) ) {
+                $product = \wc_get_product( $product_id );
+                if ( $product ) {
+                    $label = $product->get_formatted_name();
+                }
+            }
+
+            if ( '' === (string) $label ) {
+                $label = sprintf( \__( 'Product #%d', 'imagegecko' ), $product_id );
+            }
+
+            $products[] = [
+                'id'    => $product_id,
+                'label' => $label,
+            ];
+        }
+
+        $data = [
+            'products' => $products,
+            'total'    => count( $products ),
+        ];
+
+        if ( empty( $products ) ) {
+            $data['message'] = \__( 'No products match your current targeting rules.', 'imagegecko' );
+        }
+
+        \wp_send_json_success( $data );
+    }
+
+    public function ajax_process_product(): void {
+        $this->verify_ajax_request();
+
+        $product_id = isset( $_POST['product_id'] ) ? (int) $_POST['product_id'] : 0;
+
+        if ( $product_id <= 0 ) {
+            \wp_send_json_error( [ 'message' => \__( 'Invalid product identifier.', 'imagegecko' ) ], 400 );
+        }
+
+        $result = $this->generate_product_now( $product_id, [ 'force' => true ] );
+
+        \wp_send_json_success(
+            [
+                'product_id'    => $product_id,
+                'success'       => $result['success'],
+                'status'        => $result['status'],
+                'message'       => $result['message'],
+                'attachment_id' => $result['attachment_id'] ?? null,
+            ]
+        );
+    }
+
+    private function run_generation( int $product_id, string $prompt, array $categories ): array {
+        $image_payload = $this->image_handler->prepare_product_image( $product_id );
+        if ( \is_wp_error( $image_payload ) ) {
+            $message = $image_payload->get_error_message();
+            $this->logger->error( 'Failed to prepare source image.', [ 'product_id' => $product_id, 'error' => $message ] );
+
+            return [
+                'success' => false,
+                'error'   => $message,
+            ];
+        }
+
         $product_sku = '';
         if ( \function_exists( '\wc_get_product' ) ) {
-            $product = \wc_get_product( $product_id );
+            $product     = \wc_get_product( $product_id );
             $product_sku = $product ? (string) $product->get_sku() : '';
         }
 
@@ -203,7 +343,7 @@ class Generation_Controller {
             $image_payload,
             [
                 'prompt'     => $prompt,
-                'categories' => $payload['categories'] ?? [],
+                'categories' => $categories,
                 'sku'        => $product_sku,
             ]
         );
@@ -211,8 +351,11 @@ class Generation_Controller {
         if ( ! $api_response['success'] ) {
             $message = $api_response['error'] ?? \__( 'Mediator request failed.', 'imagegecko' );
             $this->logger->error( 'Mediator generation failed.', [ 'product_id' => $product_id, 'error' => $message ] );
-            $this->update_status( $product_id, 'failed', $message );
-            return;
+
+            return [
+                'success' => false,
+                'error'   => $message,
+            ];
         }
 
         $media_payload = [
@@ -226,12 +369,83 @@ class Generation_Controller {
         if ( \is_wp_error( $attachment_id ) ) {
             $message = $attachment_id->get_error_message();
             $this->logger->error( 'Failed to store generated media.', [ 'product_id' => $product_id, 'error' => $message ] );
-            $this->update_status( $product_id, 'failed', $message );
-            return;
+
+            return [
+                'success' => false,
+                'error'   => $message,
+            ];
         }
 
-        $this->update_status( $product_id, 'completed' );
         $this->logger->info( 'Generated image stored.', [ 'product_id' => $product_id, 'attachment_id' => $attachment_id ] );
+
+        return [
+            'success'       => true,
+            'attachment_id' => (int) $attachment_id,
+        ];
+    }
+
+    private function resolve_target_products(): array {
+        $products   = array_map( 'intval', (array) $this->settings->get_selected_products() );
+        $categories = array_map( 'intval', (array) $this->settings->get_selected_categories() );
+
+        if ( ! empty( $categories ) ) {
+            $category_query = new \WP_Query(
+                [
+                    'post_type'      => 'product',
+                    'fields'         => 'ids',
+                    'posts_per_page' => -1,
+                    'post_status'    => [ 'publish' ],
+                    'no_found_rows'  => true,
+                    'tax_query'      => [
+                        [
+                            'taxonomy' => 'product_cat',
+                            'field'    => 'term_id',
+                            'terms'    => $categories,
+                        ],
+                    ],
+                ]
+            );
+
+            if ( ! empty( $category_query->posts ) ) {
+                $products = array_merge( $products, array_map( 'intval', $category_query->posts ) );
+            }
+
+            \wp_reset_postdata();
+        }
+
+        if ( empty( $products ) ) {
+            $all_products = new \WP_Query(
+                [
+                    'post_type'      => 'product',
+                    'fields'         => 'ids',
+                    'posts_per_page' => -1,
+                    'post_status'    => [ 'publish' ],
+                    'no_found_rows'  => true,
+                ]
+            );
+
+            if ( ! empty( $all_products->posts ) ) {
+                $products = array_map( 'intval', $all_products->posts );
+            }
+
+            \wp_reset_postdata();
+        }
+
+        $products = array_unique( array_filter( $products ) );
+
+        return array_values( $products );
+    }
+
+    private function verify_ajax_request(): void {
+        $nonce = isset( $_REQUEST['nonce'] ) ? (string) $_REQUEST['nonce'] : '';
+
+        if ( ! \wp_verify_nonce( $nonce, Admin_Settings_Page::NONCE_ACTION ) ) {
+            \wp_send_json_error( [ 'message' => \__( 'Invalid request nonce.', 'imagegecko' ) ], 403 );
+        }
+
+        if ( ! \current_user_can( 'manage_woocommerce' ) ) {
+            \wp_send_json_error( [ 'message' => \__( 'You do not have permission to perform this action.', 'imagegecko' ) ], 403 );
+        }
     }
 
     private function should_process_product( int $product_id ): bool {

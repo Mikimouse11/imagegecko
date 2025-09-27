@@ -37,6 +37,7 @@ class Admin_Settings_Page {
         \add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_assets' ] );
         \add_action( 'wp_ajax_imagegecko_search_categories', [ $this, 'ajax_search_categories' ] );
         \add_action( 'wp_ajax_imagegecko_search_products', [ $this, 'ajax_search_products' ] );
+        \add_action( 'admin_post_imagegecko_save_api_key', [ $this, 'handle_api_key_submission' ] );
     }
 
     public function register_menu(): void {
@@ -58,18 +59,10 @@ class Admin_Settings_Page {
         );
 
         \add_settings_section(
-            'imagegecko_connection',
-            \__( 'ContentGecko Connection', 'imagegecko' ),
-            [ $this, 'render_connection_intro' ],
+            'imagegecko_generation',
+            \__( 'Generation Defaults', 'imagegecko' ),
+            [ $this, 'render_generation_intro' ],
             self::MENU_SLUG
-        );
-
-        \add_settings_field(
-            'imagegecko_api_key',
-            \__( 'API Key', 'imagegecko' ),
-            [ $this, 'render_api_key_field' ],
-            self::MENU_SLUG,
-            'imagegecko_connection'
         );
 
         \add_settings_field(
@@ -77,7 +70,7 @@ class Admin_Settings_Page {
             \__( 'Default Style Prompt', 'imagegecko' ),
             [ $this, 'render_prompt_field' ],
             self::MENU_SLUG,
-            'imagegecko_connection'
+            'imagegecko_generation'
         );
 
         \add_settings_field(
@@ -85,7 +78,7 @@ class Admin_Settings_Page {
             \__( 'Target Categories', 'imagegecko' ),
             [ $this, 'render_categories_field' ],
             self::MENU_SLUG,
-            'imagegecko_connection'
+            'imagegecko_generation'
         );
 
         \add_settings_field(
@@ -93,12 +86,12 @@ class Admin_Settings_Page {
             \__( 'Target Products', 'imagegecko' ),
             [ $this, 'render_products_field' ],
             self::MENU_SLUG,
-            'imagegecko_connection'
+            'imagegecko_generation'
         );
     }
 
-    public function render_connection_intro(): void {
-        echo '<p>' . \esc_html__( 'Paste your ContentGecko-issued API key and define how ImageGecko should style generated photos. Select entire categories or hand-pick products to enable.', 'imagegecko' ) . '</p>';
+    public function render_generation_intro(): void {
+        echo '<p>' . \esc_html__( 'Define the default styling prompt and which products ImageGecko should enhance when you run the workflow.', 'imagegecko' ) . '</p>';
     }
 
     public function render_api_key_field(): void {
@@ -310,12 +303,25 @@ class Admin_Settings_Page {
             [
                 'ajaxUrl' => \admin_url( 'admin-ajax.php' ),
                 'nonce'   => \wp_create_nonce( self::NONCE_ACTION ),
+                'hasApiKey' => '' !== $this->settings->get_api_key(),
                 'i18n'    => [
                     'noResults' => \__( 'No matches found.', 'imagegecko' ),
                     'duplicate' => \__( 'Already selected.', 'imagegecko' ),
                     'remove'    => \__( 'Remove', 'imagegecko' ),
                     'categorySummarySingular' => \__( 'Selected categories currently cover approximately %d published product.', 'imagegecko' ),
                     'categorySummaryPlural'   => \__( 'Selected categories currently cover approximately %d published products.', 'imagegecko' ),
+                    'startError'              => \__( 'Unable to prepare the generation run. Please try again.', 'imagegecko' ),
+                    'processing'              => \__( 'Processing…', 'imagegecko' ),
+                    'queued'                  => \__( 'Queued', 'imagegecko' ),
+                    'completed'               => \__( 'Completed', 'imagegecko' ),
+                    'failed'                  => \__( 'Failed', 'imagegecko' ),
+                    'skipped'                 => \__( 'Skipped', 'imagegecko' ),
+                    'summaryProgress'         => \__( '%1$d of %2$d products completed', 'imagegecko' ),
+                    'summaryFinished'         => \__( 'All done! %d products enhanced.', 'imagegecko' ),
+                    'go'                      => \__( 'GO', 'imagegecko' ),
+                    'going'                   => \__( 'Working…', 'imagegecko' ),
+                    'stepLocked'              => \__( 'Add your API key before running the workflow.', 'imagegecko' ),
+                    'idle'                    => \__( 'Idle', 'imagegecko' ),
                 ],
             ]
         );
@@ -424,31 +430,86 @@ class Admin_Settings_Page {
 
         $sanitized = $this->settings->sanitize_settings( $input );
 
-        if ( isset( $_POST['imagegecko_api_key'] ) ) {
-            $api_key = \sanitize_text_field( \wp_unslash( (string) $_POST['imagegecko_api_key'] ) );
-            $this->settings->store_api_key( $api_key );
-        }
-
         \add_settings_error( self::MENU_SLUG, 'imagegecko-settings-saved', \__( 'Settings saved.', 'imagegecko' ), 'updated' );
 
         return $sanitized;
+    }
+
+    public function handle_api_key_submission(): void {
+        if ( ! \current_user_can( 'manage_woocommerce' ) ) {
+            \wp_die( \__( 'You do not have permission to perform this action.', 'imagegecko' ) );
+        }
+
+        \check_admin_referer( self::NONCE_ACTION, '_imagegecko_nonce' );
+
+        $api_key = isset( $_POST['imagegecko_api_key'] ) ? \sanitize_text_field( \wp_unslash( (string) $_POST['imagegecko_api_key'] ) ) : '';
+
+        $this->settings->store_api_key( $api_key );
+
+        $message = '' === $api_key
+            ? \__( 'API key removed. Add a key to continue using ImageGecko.', 'imagegecko' )
+            : \__( 'API key saved. You can now configure and run ImageGecko.', 'imagegecko' );
+
+        \add_settings_error( self::MENU_SLUG, 'imagegecko-api-key-saved', $message, 'updated' );
+        \set_transient( 'settings_errors', \get_settings_errors(), 30 );
+
+        \wp_safe_redirect( \add_query_arg( [ 'page' => self::MENU_SLUG ], \admin_url( 'admin.php' ) ) );
+        exit;
     }
 
     public function render_settings_page(): void {
         if ( ! \current_user_can( 'manage_woocommerce' ) ) {
             \wp_die( \__( 'You do not have permission to access this page.', 'imagegecko' ) );
         }
+
+        $has_api_key = '' !== $this->settings->get_api_key();
         ?>
         <div class="wrap imagegecko-settings">
             <h1><?php \esc_html_e( 'ImageGecko AI Photos', 'imagegecko' ); ?></h1>
             <?php \settings_errors( self::MENU_SLUG ); ?>
-            <form method="post" action="options.php">
-                <?php
-                \settings_fields( self::OPTION_GROUP );
-                \do_settings_sections( self::MENU_SLUG );
-                \submit_button( \__( 'Save changes', 'imagegecko' ) );
-                ?>
-            </form>
+            <div class="imagegecko-steps">
+                <section class="imagegecko-step imagegecko-step--api">
+                    <h2><?php \esc_html_e( 'Step 1: Connect to ContentGecko', 'imagegecko' ); ?></h2>
+                    <p><?php \esc_html_e( 'Paste the API key from your ContentGecko dashboard. This unlocks the rest of the workflow.', 'imagegecko' ); ?></p>
+                    <form method="post" action="<?php echo \esc_url( \admin_url( 'admin-post.php' ) ); ?>">
+                        <?php \wp_nonce_field( self::NONCE_ACTION, '_imagegecko_nonce' ); ?>
+                        <input type="hidden" name="action" value="imagegecko_save_api_key" />
+                        <?php $this->render_api_key_field(); ?>
+                        <?php \submit_button( \__( 'Save API Key', 'imagegecko' ), 'primary', 'submit', false ); ?>
+                        <?php if ( $has_api_key ) : ?>
+                            <p class="imagegecko-step__status imagegecko-step__status--connected">
+                                <?php \esc_html_e( 'Connected to ContentGecko.', 'imagegecko' ); ?>
+                            </p>
+                        <?php endif; ?>
+                    </form>
+                </section>
+
+                <section class="imagegecko-step imagegecko-step--configure<?php echo $has_api_key ? '' : ' imagegecko-step--disabled'; ?>">
+                    <h2><?php \esc_html_e( 'Step 2: Choose Products & Styles', 'imagegecko' ); ?></h2>
+                    <?php if ( $has_api_key ) : ?>
+                        <form method="post" action="options.php">
+                            <?php
+                            \settings_fields( self::OPTION_GROUP );
+                            \do_settings_sections( self::MENU_SLUG );
+                            \submit_button( \__( 'Save Configuration', 'imagegecko' ), 'secondary', 'submit', false );
+                            ?>
+                        </form>
+                        <section class="imagegecko-step imagegecko-step--run">
+                            <h2><?php \esc_html_e( 'Step 3: Enhance Products', 'imagegecko' ); ?></h2>
+                            <p><?php \esc_html_e( 'When you are ready, click GO. ImageGecko will generate new lifestyle imagery and update each product automatically.', 'imagegecko' ); ?></p>
+                            <button type="button" class="button button-primary" id="imagegecko-go-button" data-state="idle"><?php \esc_html_e( 'GO', 'imagegecko' ); ?></button>
+                            <div id="imagegecko-progress" class="imagegecko-progress" style="display:none;">
+                                <p class="imagegecko-progress__summary"></p>
+                                <ul class="imagegecko-progress__list"></ul>
+                            </div>
+                        </section>
+                    <?php else : ?>
+                        <p class="imagegecko-step__notice notice notice-warning">
+                            <?php \esc_html_e( 'Add your API key above to unlock targeting and start enhancing products.', 'imagegecko' ); ?>
+                        </p>
+                    <?php endif; ?>
+                </section>
+            </div>
         </div>
         <?php
     }

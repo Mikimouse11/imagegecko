@@ -2,6 +2,38 @@
     max-width: 640px;
 }
 
+.imagegecko-steps {
+    display: grid;
+    gap: 32px;
+    margin-top: 24px;
+}
+
+.imagegecko-step {
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 6px;
+    padding: 24px;
+    max-width: 820px;
+}
+
+.imagegecko-step h2 {
+    margin-top: 0;
+}
+
+.imagegecko-step--disabled {
+    opacity: 0.6;
+}
+
+.imagegecko-step__notice {
+    margin-top: 12px;
+}
+
+.imagegecko-step__status {
+    margin-top: 8px;
+    font-weight: 600;
+    color: #1d2327;
+}
+
 .imagegecko-autocomplete__selections {
     list-style: none;
     margin: 0 0 12px;
@@ -53,4 +85,87 @@
 
 .imagegecko-autocomplete__summary {
     margin: 0 0 8px;
+}
+
+.imagegecko-progress {
+    margin-top: 20px;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+    padding: 16px;
+    background: #f6f7f7;
+}
+
+.imagegecko-progress__summary {
+    margin: 0 0 12px;
+    font-weight: 600;
+}
+
+.imagegecko-progress__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+}
+
+.imagegecko-progress__item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px;
+    border-radius: 4px;
+    border: 1px solid #cbd1d3;
+    background: #fff;
+}
+
+.imagegecko-progress__item.is-processing {
+    border-color: #72aee6;
+}
+
+.imagegecko-progress__item.is-success {
+    border-color: #68b684;
+    background: #f0fdf4;
+}
+
+.imagegecko-progress__item.is-error {
+    border-color: #d63638;
+    background: #fef2f2;
+}
+
+.imagegecko-progress__item.is-skipped {
+    border-color: #b1b5b9;
+    background: #f6f7f7;
+}
+
+.imagegecko-progress__label {
+    font-weight: 600;
+    margin: 0;
+}
+
+.imagegecko-progress__status {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #50575e;
+}
+
+.imagegecko-progress__item.is-success .imagegecko-progress__status {
+    color: #2271b1;
+}
+
+.imagegecko-progress__item.is-error .imagegecko-progress__status {
+    color: #b32d2e;
+}
+
+.imagegecko-progress__item.is-processing .imagegecko-progress__status {
+    color: #2271b1;
+}
+
+.imagegecko-progress__item.is-skipped .imagegecko-progress__status {
+    color: #50575e;
+}
+
+.imagegecko-progress__message {
+    font-size: 12px;
+    color: #646970;
 }

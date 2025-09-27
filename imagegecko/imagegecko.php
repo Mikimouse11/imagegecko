@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       ImageGecko AI Photos
  * Description:       Generates model lifestyle shots for WooCommerce products using the ContentGecko mediator API.
- * Version:           0.1.0
+ * Version:           0.1.1
  * Author:            ImageGecko
  * Requires Plugins:  woocommerce
  * Text Domain:       imagegecko
@@ -21,7 +21,7 @@ if ( ! defined( 'IMAGEGECKO_PLUGIN_DIR' ) ) {
 }
 
 if ( ! defined( 'IMAGEGECKO_VERSION' ) ) {
-    define( 'IMAGEGECKO_VERSION', '0.1.0' );
+    define( 'IMAGEGECKO_VERSION', '0.1.1' );
 }
 
 // Basic PSR-4 style autoloader for plugin classes.

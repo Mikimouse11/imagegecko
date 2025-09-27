@@ -170,9 +170,272 @@
         }
     };
 
+    function GenerationRunner(options) {
+        options = options || {};
+
+        this.ajaxUrl = options.ajaxUrl || '';
+        this.nonce = options.nonce || '';
+        this.hasApiKey = !!options.hasApiKey;
+        this.i18n = options.i18n || {};
+
+        this.$button = $('#imagegecko-go-button');
+        if (!this.$button.length) {
+            return;
+        }
+
+        this.$progress = $('#imagegecko-progress');
+        this.$summary = this.$progress.find('.imagegecko-progress__summary');
+        this.$list = this.$progress.find('.imagegecko-progress__list');
+
+        this.queue = [];
+        this.items = {};
+        this.total = 0;
+        this.completed = 0;
+        this.failed = 0;
+        this.skipped = 0;
+
+        this.bindEvents();
+    }
+
+    GenerationRunner.prototype.bindEvents = function () {
+        var self = this;
+
+        this.$button.on('click', function (event) {
+            event.preventDefault();
+
+            if (!self.hasApiKey) {
+                window.alert(self.i18n.stepLocked || 'API key missing.');
+                return;
+            }
+
+            if ($(this).prop('disabled')) {
+                return;
+            }
+
+            self.start();
+        });
+    };
+
+    GenerationRunner.prototype.setButtonState = function (state) {
+        if ('busy' === state) {
+            this.$button.prop('disabled', true).text(this.i18n.going || 'Working…');
+        } else {
+            this.$button.prop('disabled', false).text(this.i18n.go || 'GO');
+        }
+
+        this.$button.attr('data-state', state);
+    };
+
+    GenerationRunner.prototype.resetProgress = function () {
+        this.queue = [];
+        this.items = {};
+        this.total = 0;
+        this.completed = 0;
+        this.failed = 0;
+        this.skipped = 0;
+
+        this.$summary.text('');
+        this.$list.empty();
+        this.$progress.show();
+    };
+
+    GenerationRunner.prototype.start = function () {
+        var self = this;
+
+        this.setButtonState('busy');
+        this.resetProgress();
+
+        $.post(this.ajaxUrl, {
+            action: 'imagegecko_start_generation',
+            nonce: this.nonce
+        }).done(function (response) {
+            if (!response || !response.success || !response.data || !Array.isArray(response.data.products)) {
+                self.handleStartError(response);
+                return;
+            }
+
+            self.queue = response.data.products.slice();
+            self.total = self.queue.length;
+
+            if (!self.total) {
+                var message = response.data.message || self.i18n.startError;
+                self.showMessage(message);
+                self.setButtonState('idle');
+                return;
+            }
+
+            self.renderInitialList();
+            self.updateSummary();
+            self.processNext();
+        }).fail(function () {
+            self.handleStartError();
+        });
+    };
+
+    GenerationRunner.prototype.handleStartError = function () {
+        this.showMessage(this.i18n.startError || 'Unable to start.');
+        this.setButtonState('idle');
+    };
+
+    GenerationRunner.prototype.showMessage = function (message) {
+        this.$progress.show();
+        this.$summary.text(message || '');
+        this.$list.empty();
+    };
+
+    GenerationRunner.prototype.renderInitialList = function () {
+        var self = this;
+
+        this.$list.empty();
+        this.items = {};
+
+        this.queue.slice().forEach(function (product) {
+            var $item = $('<li>', {
+                class: 'imagegecko-progress__item',
+                'data-product-id': product.id
+            });
+
+            $('<span>', {
+                class: 'imagegecko-progress__label',
+                text: product.label
+            }).appendTo($item);
+
+            $('<span>', {
+                class: 'imagegecko-progress__status',
+                text: self.i18n.queued || 'Queued'
+            }).appendTo($item);
+
+            $('<span>', {
+                class: 'imagegecko-progress__message'
+            }).appendTo($item);
+
+            self.$list.append($item);
+            self.items[product.id] = $item;
+        });
+    };
+
+    GenerationRunner.prototype.processNext = function () {
+        var self = this;
+
+        if (!this.queue.length) {
+            this.finish();
+            return;
+        }
+
+        var product = this.queue.shift();
+        var productId = product.id;
+
+        this.updateItemStatus(productId, this.i18n.processing || 'Processing…', 'is-processing');
+
+        $.post(this.ajaxUrl, {
+            action: 'imagegecko_process_product',
+            nonce: this.nonce,
+            product_id: productId
+        }).done(function (response) {
+            if (!response || !response.success || !response.data) {
+                self.handleProcessFailure(productId);
+                return;
+            }
+
+            self.handleProcessResult(productId, response.data);
+        }).fail(function () {
+            self.handleProcessFailure(productId);
+        });
+    };
+
+    GenerationRunner.prototype.handleProcessFailure = function (productId) {
+        this.handleProcessResult(productId, {
+            success: false,
+            status: 'failed',
+            message: this.i18n.startError || 'Request failed.'
+        });
+    };
+
+    GenerationRunner.prototype.handleProcessResult = function (productId, data) {
+        data = data || {};
+
+        var status = data.status || (data.success ? 'completed' : 'failed');
+        var message = data.message || '';
+        var statusText = '';
+        var cssClass = '';
+
+        switch (status) {
+            case 'completed':
+                statusText = this.i18n.completed || 'Completed';
+                cssClass = 'is-success';
+                this.completed++;
+                break;
+            case 'skipped':
+                statusText = this.i18n.skipped || 'Skipped';
+                cssClass = 'is-skipped';
+                this.skipped++;
+                break;
+            case 'blocked':
+            case 'failed':
+            default:
+                statusText = this.i18n.failed || 'Failed';
+                cssClass = 'is-error';
+                this.failed++;
+                break;
+        }
+
+        this.updateItemStatus(productId, statusText, cssClass, message);
+        this.updateSummary();
+        this.processNext();
+    };
+
+    GenerationRunner.prototype.updateItemStatus = function (productId, text, cssClass, message) {
+        var $item = this.items[productId];
+        if (!$item || !$item.length) {
+            return;
+        }
+
+        var $status = $item.find('.imagegecko-progress__status');
+        $status.text(text || '');
+
+        $item.removeClass('is-success is-error is-processing is-skipped');
+        if (cssClass) {
+            $item.addClass(cssClass);
+        }
+
+        if (message) {
+            $item.find('.imagegecko-progress__message').text(message);
+        } else {
+            $item.find('.imagegecko-progress__message').text('');
+        }
+    };
+
+    GenerationRunner.prototype.updateSummary = function (finished) {
+        if (!this.total) {
+            this.$summary.text('');
+            return;
+        }
+
+        if (finished) {
+            var finishedTemplate = this.i18n.summaryFinished || 'All done! %d products enhanced.';
+            this.$summary.text(finishedTemplate.replace('%d', this.completed));
+            return;
+        }
+
+        var progressTemplate = this.i18n.summaryProgress || '%1$d of %2$d products completed';
+        this.$summary.text(progressTemplate.replace('%1$d', this.completed).replace('%2$d', this.total));
+    };
+
+    GenerationRunner.prototype.finish = function () {
+        this.setButtonState('idle');
+        this.updateSummary(true);
+    };
+
     $(function () {
         $('.imagegecko-autocomplete').each(function () {
             new Autocomplete($(this));
+        });
+
+        new GenerationRunner({
+            ajaxUrl: imageGeckoAdmin.ajaxUrl,
+            nonce: imageGeckoAdmin.nonce,
+            hasApiKey: !!imageGeckoAdmin.hasApiKey,
+            i18n: imageGeckoAdmin.i18n
         });
     });
 })(jQuery);
