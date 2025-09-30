@@ -317,9 +317,11 @@ class Generation_Controller {
         try {
             $this->verify_ajax_request();
 
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in verify_ajax_request()
             $product_id = isset( $_POST['product_id'] ) ? absint( \wp_unslash( $_POST['product_id'] ) ) : 0;
 
             if ( $product_id <= 0 ) {
+                // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in verify_ajax_request()
                 $this->logger->error( 'AJAX process product failed: Invalid product ID.', [ 'provided_id' => isset( $_POST['product_id'] ) ? \sanitize_text_field( \wp_unslash( $_POST['product_id'] ) ) : 'not_set' ] );
                 \wp_send_json_error( [ 'message' => \__( 'Invalid product identifier.', 'imagegecko' ) ], 400 );
             }
@@ -578,9 +580,11 @@ class Generation_Controller {
         try {
             $this->verify_ajax_request();
 
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in verify_ajax_request()
             $attachment_id = isset( $_POST['attachment_id'] ) ? absint( \wp_unslash( $_POST['attachment_id'] ) ) : 0;
 
             if ( $attachment_id <= 0 ) {
+                // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in verify_ajax_request()
                 $this->logger->error( 'AJAX delete generated image failed: Invalid attachment ID.', [ 'provided_id' => isset( $_POST['attachment_id'] ) ? \sanitize_text_field( \wp_unslash( $_POST['attachment_id'] ) ) : 'not_set' ] );
                 \wp_send_json_error( [ 'message' => \__( 'Invalid attachment identifier.', 'imagegecko' ) ], 400 );
             }

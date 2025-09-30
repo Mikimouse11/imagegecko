@@ -35,16 +35,8 @@ class Plugin {
      * Boot plugin services.
      */
     public function boot(): void {
-        $this->load_textdomain();
         $this->register_services();
         $this->init_services();
-    }
-
-    /**
-     * Load plugin text domain for translations.
-     */
-    private function load_textdomain(): void {
-        \load_plugin_textdomain( 'imagegecko', false, dirname( \plugin_basename( IMAGEGECKO_PLUGIN_FILE ) ) . '/languages/' );
     }
 
     /**

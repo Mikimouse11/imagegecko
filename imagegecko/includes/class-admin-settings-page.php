@@ -348,6 +348,7 @@ class Admin_Settings_Page {
     public function ajax_search_categories(): void {
         $this->guard_ajax_request();
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce verified in guard_ajax_request()
         $search = isset( $_GET['q'] ) ? \sanitize_text_field( \wp_unslash( (string) $_GET['q'] ) ) : '';
 
         if ( '' === $search || strlen( $search ) < 2 ) {
@@ -393,6 +394,7 @@ class Admin_Settings_Page {
     public function ajax_search_products(): void {
         $this->guard_ajax_request();
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce verified in guard_ajax_request()
         $search = isset( $_GET['q'] ) ? \sanitize_text_field( \wp_unslash( (string) $_GET['q'] ) ) : '';
 
         if ( '' === $search || strlen( $search ) < 2 ) {
@@ -434,6 +436,7 @@ class Admin_Settings_Page {
     public function ajax_save_config(): void {
         $this->guard_ajax_request();
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in guard_ajax_request()
         $config_data = isset( $_POST['config'] ) ? \map_deep( \wp_unslash( $_POST['config'] ), 'sanitize_text_field' ) : [];
         
         $this->logger->info( 'Saving configuration via AJAX.', [ 'config_keys' => array_keys( $config_data ) ] );
@@ -477,7 +480,7 @@ class Admin_Settings_Page {
 
     public function handle_api_key_submission(): void {
         if ( ! \current_user_can( 'manage_woocommerce' ) ) {
-            \wp_die( \__( 'You do not have permission to perform this action.', 'imagegecko' ) );
+            \wp_die( \esc_html__( 'You do not have permission to perform this action.', 'imagegecko' ) );
         }
 
         \check_admin_referer( self::NONCE_ACTION, '_imagegecko_nonce' );
@@ -499,7 +502,7 @@ class Admin_Settings_Page {
 
     public function render_settings_page(): void {
         if ( ! \current_user_can( 'manage_woocommerce' ) ) {
-            \wp_die( \__( 'You do not have permission to access this page.', 'imagegecko' ) );
+            \wp_die( \esc_html__( 'You do not have permission to access this page.', 'imagegecko' ) );
         }
 
         $has_api_key = '' !== $this->settings->get_api_key();
