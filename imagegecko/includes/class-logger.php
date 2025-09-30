@@ -52,7 +52,10 @@ class Logger {
             return;
         }
 
-        // Fallback to PHP error_log when WooCommerce logger is unavailable.
-        error_log( sprintf( '[ImageGecko][%s] %s %s', strtoupper( $level ), $message, \wp_json_encode( $context ) ) );
+        // Fallback when WooCommerce logger is unavailable.
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+            error_log( sprintf( '[ImageGecko][%s] %s %s', strtoupper( $level ), $message, \wp_json_encode( $context ) ) );
+        }
     }
 }

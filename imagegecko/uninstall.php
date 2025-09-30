@@ -23,11 +23,10 @@ function imagegecko_uninstall_options() {
 
 	// For multisite installations, remove options from all sites.
 	if ( is_multisite() ) {
-		global $wpdb;
-		$blog_ids = $wpdb->get_col( "SELECT blog_id FROM {$wpdb->blogs}" );
+		$sites = get_sites( array( 'number' => 0 ) );
 
-		foreach ( $blog_ids as $blog_id ) {
-			switch_to_blog( $blog_id );
+		foreach ( $sites as $site ) {
+			switch_to_blog( $site->blog_id );
 			delete_option( 'imagegecko_settings' );
 			delete_option( 'imagegecko_api_key' );
 			restore_current_blog();
@@ -39,8 +38,6 @@ function imagegecko_uninstall_options() {
  * Clean up product metadata.
  */
 function imagegecko_uninstall_metadata() {
-	global $wpdb;
-
 	// Remove all ImageGecko metadata from products.
 	$meta_keys = array(
 		'_imagegecko_status',
@@ -50,11 +47,7 @@ function imagegecko_uninstall_metadata() {
 	);
 
 	foreach ( $meta_keys as $meta_key ) {
-		$wpdb->delete(
-			$wpdb->postmeta,
-			array( 'meta_key' => $meta_key ),
-			array( '%s' )
-		);
+		delete_metadata( 'post', 0, $meta_key, '', true );
 	}
 
 	// Remove metadata from attachments.
@@ -66,11 +59,7 @@ function imagegecko_uninstall_metadata() {
 	);
 
 	foreach ( $attachment_meta_keys as $meta_key ) {
-		$wpdb->delete(
-			$wpdb->postmeta,
-			array( 'meta_key' => $meta_key ),
-			array( '%s' )
-		);
+		delete_metadata( 'post', 0, $meta_key, '', true );
 	}
 }
 
@@ -78,13 +67,7 @@ function imagegecko_uninstall_metadata() {
  * Clean up user metadata (notices).
  */
 function imagegecko_uninstall_user_meta() {
-	global $wpdb;
-
-	$wpdb->delete(
-		$wpdb->usermeta,
-		array( 'meta_key' => 'imagegecko_admin_notice' ),
-		array( '%s' )
-	);
+	delete_metadata( 'user', 0, 'imagegecko_admin_notice', '', true );
 }
 
 /**

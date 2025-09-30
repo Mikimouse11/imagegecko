@@ -100,6 +100,7 @@ class Image_Handler {
             'size'     => filesize( $file_bits['tmp_name'] ),
         ];
 
+        /* translators: %d: Product ID */
         $alt_text      = sprintf( \__( 'ImageGecko generated image for product %d', 'imagegecko' ), $product_id );
         $post_overrides = [
             'post_title' => $alt_text,
@@ -110,7 +111,7 @@ class Image_Handler {
         $attachment_id = \media_handle_sideload( $file_array, $product_id, $alt_text, $post_overrides );
 
         if ( \is_wp_error( $attachment_id ) ) {
-            @unlink( $file_bits['tmp_name'] );
+            \wp_delete_file( $file_bits['tmp_name'] );
             $this->logger->error( 'Failed to sideload generated image.', [ 'product_id' => $product_id, 'error' => $attachment_id->get_error_message() ] );
             return $attachment_id;
         }
@@ -164,7 +165,7 @@ class Image_Handler {
 
         $written = file_put_contents( $tmp_file, $decoded );
         if ( false === $written ) {
-            @unlink( $tmp_file );
+            \wp_delete_file( $tmp_file );
             return new WP_Error( 'imagegecko_tmp_write', \__( 'Failed to write temporary file.', 'imagegecko' ) );
         }
 
@@ -185,7 +186,8 @@ class Image_Handler {
             return $tmp_file;
         }
 
-        $filename = $preferred_name ?? basename( parse_url( $url, PHP_URL_PATH ) ?: 'imagegecko-generated.jpg' );
+        $parsed_url = \wp_parse_url( $url );
+        $filename = $preferred_name ?? basename( isset( $parsed_url['path'] ) ? $parsed_url['path'] : 'imagegecko-generated.jpg' );
         $type     = \wp_check_filetype( $filename );
 
         return [

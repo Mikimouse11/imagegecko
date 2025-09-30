@@ -74,6 +74,7 @@ class Generation_Controller {
             }
         }
 
+        /* translators: %d: Number of products queued */
         $this->enqueue_notice( 'success', sprintf( \_n( '%d product queued for ImageGecko generation.', '%d products queued for ImageGecko generation.', $queued, 'imagegecko' ), $queued ) );
 
         return \add_query_arg( 'imagegecko_queued', $queued, $redirect_url );
@@ -107,8 +108,8 @@ class Generation_Controller {
             return;
         }
 
-        $product_id = (int) $_GET['imagegecko_generate'];
-        $nonce      = $_GET['_wpnonce'] ?? '';
+        $product_id = isset( $_GET['imagegecko_generate'] ) ? absint( $_GET['imagegecko_generate'] ) : 0;
+        $nonce      = isset( $_GET['_wpnonce'] ) ? \sanitize_text_field( \wp_unslash( $_GET['_wpnonce'] ) ) : '';
 
         if ( ! \wp_verify_nonce( $nonce, 'imagegecko_generate_' . $product_id ) ) {
             $this->enqueue_notice( 'error', \__( 'Security check failed. Please try again.', 'imagegecko' ) );
@@ -283,6 +284,7 @@ class Generation_Controller {
                 }
 
                 if ( '' === (string) $label ) {
+                    /* translators: %d: Product ID */
                     $label = sprintf( \__( 'Product #%d', 'imagegecko' ), $product_id );
                 }
 
@@ -315,10 +317,10 @@ class Generation_Controller {
         try {
             $this->verify_ajax_request();
 
-            $product_id = isset( $_POST['product_id'] ) ? (int) $_POST['product_id'] : 0;
+            $product_id = isset( $_POST['product_id'] ) ? absint( \wp_unslash( $_POST['product_id'] ) ) : 0;
 
             if ( $product_id <= 0 ) {
-                $this->logger->error( 'AJAX process product failed: Invalid product ID.', [ 'provided_id' => $_POST['product_id'] ?? 'not_set' ] );
+                $this->logger->error( 'AJAX process product failed: Invalid product ID.', [ 'provided_id' => isset( $_POST['product_id'] ) ? \sanitize_text_field( \wp_unslash( $_POST['product_id'] ) ) : 'not_set' ] );
                 \wp_send_json_error( [ 'message' => \__( 'Invalid product identifier.', 'imagegecko' ) ], 400 );
             }
 
@@ -510,7 +512,7 @@ class Generation_Controller {
     }
 
     private function verify_ajax_request(): void {
-        $nonce = isset( $_REQUEST['nonce'] ) ? (string) $_REQUEST['nonce'] : '';
+        $nonce = isset( $_REQUEST['nonce'] ) ? \sanitize_text_field( \wp_unslash( $_REQUEST['nonce'] ) ) : '';
         
         $this->logger->debug( 'Verifying AJAX request.', [ 
             'nonce_provided' => !empty( $nonce ),
@@ -551,7 +553,8 @@ class Generation_Controller {
         \update_post_meta( $product_id, '_imagegecko_status', $status );
         \update_post_meta( $product_id, '_imagegecko_status_message', $message );
         if ( 'failed' === $status ) {
-            $this->enqueue_notice( 'error', sprintf( \__( 'ImageGecko failed for product #%d: %s', 'imagegecko' ), $product_id, $message ) );
+            /* translators: 1: Product ID, 2: Error message */
+            $this->enqueue_notice( 'error', sprintf( \__( 'ImageGecko failed for product #%1$d: %2$s', 'imagegecko' ), $product_id, $message ) );
         }
     }
 
@@ -575,10 +578,10 @@ class Generation_Controller {
         try {
             $this->verify_ajax_request();
 
-            $attachment_id = isset( $_POST['attachment_id'] ) ? (int) $_POST['attachment_id'] : 0;
+            $attachment_id = isset( $_POST['attachment_id'] ) ? absint( \wp_unslash( $_POST['attachment_id'] ) ) : 0;
 
             if ( $attachment_id <= 0 ) {
-                $this->logger->error( 'AJAX delete generated image failed: Invalid attachment ID.', [ 'provided_id' => $_POST['attachment_id'] ?? 'not_set' ] );
+                $this->logger->error( 'AJAX delete generated image failed: Invalid attachment ID.', [ 'provided_id' => isset( $_POST['attachment_id'] ) ? \sanitize_text_field( \wp_unslash( $_POST['attachment_id'] ) ) : 'not_set' ] );
                 \wp_send_json_error( [ 'message' => \__( 'Invalid attachment identifier.', 'imagegecko' ) ], 400 );
             }
 

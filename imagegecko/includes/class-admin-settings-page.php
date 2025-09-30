@@ -201,6 +201,7 @@ class Admin_Settings_Page {
             >
                 <?php
                 if ( $total_products > 0 ) {
+                    /* translators: %d: Number of published products */
                     echo \esc_html( sprintf( \_n( 'Selected categories currently cover approximately %d published product.', 'Selected categories currently cover approximately %d published products.', $total_products, 'imagegecko' ), $total_products ) );
                 }
                 ?>
@@ -311,7 +312,9 @@ class Admin_Settings_Page {
                     'noResults' => \__( 'No matches found.', 'imagegecko' ),
                     'duplicate' => \__( 'Already selected.', 'imagegecko' ),
                     'remove'    => \__( 'Remove', 'imagegecko' ),
+                    /* translators: %d: Number of published products */
                     'categorySummarySingular' => \__( 'Selected categories currently cover approximately %d published product.', 'imagegecko' ),
+                    /* translators: %d: Number of published products */
                     'categorySummaryPlural'   => \__( 'Selected categories currently cover approximately %d published products.', 'imagegecko' ),
                     'startError'              => \__( 'Unable to prepare the generation run. Please try again.', 'imagegecko' ),
                     'processing'              => \__( 'Processing…', 'imagegecko' ),
@@ -319,7 +322,9 @@ class Admin_Settings_Page {
                     'completed'               => \__( 'Completed', 'imagegecko' ),
                     'failed'                  => \__( 'Failed', 'imagegecko' ),
                     'skipped'                 => \__( 'Skipped', 'imagegecko' ),
+                    /* translators: 1: Completed products count, 2: Total products count */
                     'summaryProgress'         => \__( '%1$d of %2$d products completed', 'imagegecko' ),
+                    /* translators: %d: Number of enhanced products */
                     'summaryFinished'         => \__( 'All done! %d products enhanced.', 'imagegecko' ),
                     'go'                      => \__( 'GO', 'imagegecko' ),
                     'going'                   => \__( 'Working…', 'imagegecko' ),
@@ -333,6 +338,7 @@ class Admin_Settings_Page {
                     'deleting'                => \__( 'Deleting...', 'imagegecko' ),
                     'clickToViewFull'         => \__( 'Click to view full size', 'imagegecko' ),
                     'close'                   => \__( 'Close', 'imagegecko' ),
+                    /* translators: %d: Number of batches processing */
                     'batchProcessing'         => \__( ' (Processing %d batches simultaneously)', 'imagegecko' ),
                 ],
             ]
@@ -428,7 +434,7 @@ class Admin_Settings_Page {
     public function ajax_save_config(): void {
         $this->guard_ajax_request();
 
-        $config_data = isset( $_POST['config'] ) ? (array) $_POST['config'] : [];
+        $config_data = isset( $_POST['config'] ) ? \map_deep( \wp_unslash( $_POST['config'] ), 'sanitize_text_field' ) : [];
         
         $this->logger->info( 'Saving configuration via AJAX.', [ 'config_keys' => array_keys( $config_data ) ] );
 
@@ -448,7 +454,7 @@ class Admin_Settings_Page {
     }
 
     private function guard_ajax_request(): void {
-        $nonce = isset( $_REQUEST['nonce'] ) ? (string) $_REQUEST['nonce'] : '';
+        $nonce = isset( $_REQUEST['nonce'] ) ? \sanitize_text_field( \wp_unslash( $_REQUEST['nonce'] ) ) : '';
 
         if ( ! \wp_verify_nonce( $nonce, self::NONCE_ACTION ) ) {
             \wp_send_json_error( [ 'message' => \__( 'Invalid request nonce.', 'imagegecko' ) ], 403 );

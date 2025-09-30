@@ -2,7 +2,7 @@
 Contributors: ContentGecko
 Tags: woocommerce, ai, images, product photos, lifestyle
 Requires at least: 5.8
-Tested up to: 6.4
+Tested up to: 6.8
 Requires PHP: 7.4
 Stable tag: 0.1.2
 License: GPLv2 or later
