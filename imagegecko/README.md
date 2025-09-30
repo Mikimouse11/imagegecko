@@ -2,6 +2,24 @@
 
 Generate on-model lifestyle imagery for WooCommerce products by sending source photos to the ContentGecko mediator endpoint.
 
+## License
+
+This plugin is licensed under the GPL v2 or later.
+
+```
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+```
+
+See [LICENSE.txt](LICENSE.txt) for the full license text.
+
 ## Features
 - Securely store ContentGecko API key in WordPress options (encrypted when OpenSSL is available).
 - Configure default style prompt plus targeted categories/products from the settings page under WooCommerce → ImageGecko AI Photos.
@@ -20,6 +38,17 @@ Generate on-model lifestyle imagery for WooCommerce products by sending source p
 4. From the Products list:
    - Use the bulk action **Generate AI Photos (ImageGecko)** to enqueue multiple products, or
    - Use the row action **Generate AI Photo** for a single product.
+
+## External Service Usage
+
+**Important:** This plugin relies on the ContentGecko API service for AI image generation. By using this plugin, you agree to transmit product images and metadata to ContentGecko's servers for processing.
+
+- **Service Provider:** ContentGecko
+- **Service Purpose:** AI-powered image generation
+- **Data Transmitted:** Product images (base64 encoded), product ID, SKU, categories, and style prompts
+- **Privacy:** No customer or personal data is transmitted
+- **Terms:** [ContentGecko Terms of Service](https://contentgecko.io/terms-conditions/)
+- **Privacy Policy:** [ContentGecko Privacy Policy](https://contentgecko.io/privacy-policy/)
 
 ## Mediator API Contract
 - Endpoint: `POST https://dev.api.contentgecko.io/product-image`

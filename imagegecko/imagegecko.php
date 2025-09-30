@@ -1,11 +1,27 @@
 <?php
 /**
- * Plugin Name:       ImageGecko AI Photos
- * Description:       Generates model lifestyle shots for WooCommerce products using the ContentGecko mediator API.
+ * Plugin Name:       ImageGecko AI Product Images
+ * Plugin URI:        https://contentgecko.io/woocommerce-product-image-generator/
+ * Description:       Generates model lifestyle shots for WooCommerce products using ContentGecko AI.
  * Version:           0.1.2
- * Author:            ImageGecko
+ * Author:            ContentGecko
+ * License:           GPL v2 or later
+ * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Requires Plugins:  woocommerce
+ * Requires at least: 5.8
+ * Requires PHP:      7.4
  * Text Domain:       imagegecko
+ * Domain Path:       /languages
+ *
+ * This plugin is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * any later version.
+ *
+ * This plugin is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
