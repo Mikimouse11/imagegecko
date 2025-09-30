@@ -38,7 +38,7 @@ This plugin requires an active ContentGecko API account and sends product images
 
 **Service Details:**
 * Service: ContentGecko AI Image Generation API
-* Endpoint: https://dev.api.contentgecko.io/product-image
+* Endpoint: https://api.contentgecko.io/product-image
 * Privacy: Product images and metadata are transmitted to the ContentGecko service for processing
 * Terms: By using this plugin, you agree to ContentGecko's Terms of Service
 * Learn more: [ContentGecko Terms of Service](https://contentgecko.io/terms-conditions/)

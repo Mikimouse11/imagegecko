@@ -1,6 +1,6 @@
 # ImageGecko AI Photos Plugin
 
-Generate on-model lifestyle imagery for WooCommerce products by sending source photos to the ContentGecko mediator endpoint.
+Generate on-model lifestyle imagery for WooCommerce products using ContentGecko AI.
 
 ## License
 
@@ -50,8 +50,8 @@ See [LICENSE.txt](LICENSE.txt) for the full license text.
 - **Terms:** [ContentGecko Terms of Service](https://contentgecko.io/terms-conditions/)
 - **Privacy Policy:** [ContentGecko Privacy Policy](https://contentgecko.io/privacy-policy/)
 
-## Mediator API Contract
-- Endpoint: `POST https://dev.api.contentgecko.io/product-image`
+## ContentGecko API Contract
+- Endpoint: `POST https://api.contentgecko.io/product-image`
 - Payload (JSON):
   ```json
   {

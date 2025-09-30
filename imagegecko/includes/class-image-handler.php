@@ -75,11 +75,11 @@ class Image_Handler {
     }
 
     /**
-     * Persist mediator output into the Media Library and attach to product.
+     * Persist API response into the Media Library and attach to product.
      */
     public function persist_generated_media( int $product_id, array $payload ) {
         if ( empty( $payload['image_base64'] ) && empty( $payload['image_url'] ) ) {
-            return new WP_Error( 'imagegecko_invalid_payload', \__( 'Mediator response missing image data.', 'imagegecko' ) );
+            return new WP_Error( 'imagegecko_invalid_payload', \__( 'API response missing image data.', 'imagegecko' ) );
         }
 
         $file_bits = ! empty( $payload['image_base64'] )

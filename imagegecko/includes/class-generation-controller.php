@@ -249,7 +249,7 @@ class Generation_Controller {
         $result = $this->run_generation( $product_id, $prompt, $categories );
 
         if ( ! $result['success'] ) {
-            $message = $result['error'] ?? \__( 'Mediator request failed.', 'imagegecko' );
+            $message = $result['error'] ?? \__( 'API request failed.', 'imagegecko' );
             $this->update_status( $product_id, 'failed', $message );
             return;
         }
@@ -386,8 +386,8 @@ class Generation_Controller {
         );
 
         if ( ! $api_response['success'] ) {
-            $message = $api_response['error'] ?? \__( 'Mediator request failed.', 'imagegecko' );
-            $this->logger->error( 'Mediator generation failed.', [ 
+            $message = $api_response['error'] ?? \__( 'API request failed.', 'imagegecko' );
+            $this->logger->error( 'API generation failed.', [ 
                 'product_id' => $product_id, 
                 'error' => $message,
                 'response_code' => $api_response['code'] ?? 'unknown',

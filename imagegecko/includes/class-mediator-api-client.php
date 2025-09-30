@@ -4,10 +4,10 @@ namespace ImageGecko;
 
 
 /**
- * Handles communication with the ContentGecko mediator endpoint.
+ * Handles communication with the ContentGecko API endpoint.
  */
 class Mediator_Api_Client {
-    const ENDPOINT = 'https://dev.api.contentgecko.io/product-image';
+    const ENDPOINT = 'https://api.contentgecko.io/product-image';
 
     /**
      * @var Settings
@@ -25,7 +25,7 @@ class Mediator_Api_Client {
     }
 
     /**
-     * Dispatch generation request to mediator API.
+     * Dispatch generation request to ContentGecko API.
      *
      * @param int   $product_id Product identifier.
      * @param array $image_payload Prepared image data with base64, mime_type, file_name.
@@ -73,7 +73,7 @@ class Mediator_Api_Client {
 
         $response = \wp_remote_post( self::ENDPOINT, $args );
         if ( \is_wp_error( $response ) ) {
-            $this->logger->error( 'Mediator request failed.', [ 'error' => $response->get_error_message(), 'product_id' => $product_id ] );
+            $this->logger->error( 'API request failed.', [ 'error' => $response->get_error_message(), 'product_id' => $product_id ] );
 
             return [
                 'success' => false,
@@ -88,7 +88,7 @@ class Mediator_Api_Client {
 
         if ( $code >= 400 ) {
             $message = is_array( $payload ) && isset( $payload['error'] ) ? $payload['error'] : \__( 'ContentGecko returned an error.', 'imagegecko' );
-            $this->logger->error( 'Mediator responded with error.', [ 'product_id' => $product_id, 'code' => $code, 'payload' => $payload ] );
+            $this->logger->error( 'API responded with error.', [ 'product_id' => $product_id, 'code' => $code, 'payload' => $payload ] );
 
             return [
                 'success' => false,
@@ -99,17 +99,17 @@ class Mediator_Api_Client {
         }
 
         if ( ! is_array( $payload ) ) {
-            $this->logger->error( 'Mediator response is not valid JSON.', [ 'product_id' => $product_id ] );
+            $this->logger->error( 'API response is not valid JSON.', [ 'product_id' => $product_id ] );
 
             return [
                 'success' => false,
                 'code'    => $code,
                 'data'    => null,
-                'error'   => \__( 'Mediator response parsing failed.', 'imagegecko' ),
+                'error'   => \__( 'API response parsing failed.', 'imagegecko' ),
             ];
         }
 
-        $this->logger->info( 'Mediator request succeeded.', [ 'product_id' => $product_id ] );
+        $this->logger->info( 'API request succeeded.', [ 'product_id' => $product_id ] );
 
         return [
             'success' => true,

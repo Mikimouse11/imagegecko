@@ -15,7 +15,7 @@ We take the security of ImageGecko AI Photos seriously. If you discover a securi
 ### How to Report
 
 1. **Do not** open a public GitHub issue
-2. Email us directly at: security@imagegecko.io
+2. Email us directly at: support@contentgecko.io
 3. Include the following in your report:
    - Description of the vulnerability
    - Steps to reproduce

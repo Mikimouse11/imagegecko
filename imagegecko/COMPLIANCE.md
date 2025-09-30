@@ -232,7 +232,7 @@ This document outlines how ImageGecko AI Photos complies with the [WordPress.org
 
 ### ContentGecko API
 
-**Service URL**: https://dev.api.contentgecko.io/product-image
+**Service URL**: https://api.contentgecko.io/product-image
 
 **Purpose**: AI-powered image generation
 
@@ -277,8 +277,8 @@ Before submitting to WordPress.org:
 ## Contact
 
 For compliance questions or concerns:
-- Email: support@imagegecko.io
-- Security: security@imagegecko.io
+- Email: support@contentgecko.io
+- Security: support@contentgecko.io
 
 ## Last Updated
 
