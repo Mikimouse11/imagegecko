@@ -31,22 +31,23 @@ class Image_Handler {
             return new WP_Error( 'imagegecko_invalid_product', \__( 'Unable to load product.', 'imagegecko' ) );
         }
 
-        // Find the first available original (non-AI-generated) image
+        // Always use the product's featured image as the base
         $attachment_id = $this->find_original_image( $product_id );
         if ( ! $attachment_id ) {
-            $this->logger->warning( 'No original images found for product.', [ 
+            $featured_id = (int) $product->get_image_id();
+            $this->logger->warning( 'No featured image found for product or featured image is AI-generated.', [ 
                 'product_id' => $product_id,
-                'featured_image_id' => (int) $product->get_image_id(),
-                'gallery_count' => count( $this->get_gallery_image_ids( $product_id ) ),
-                'generated_attachments' => $this->get_generated_attachment_ids( $product_id )
+                'featured_image_id' => $featured_id,
+                'has_featured' => $featured_id > 0,
+                'is_featured_generated' => $featured_id > 0 ? (bool) \get_post_meta( $featured_id, '_imagegecko_generated', true ) : false
             ] );
-            return new WP_Error( 'imagegecko_no_original_image', \__( 'Product has no original images available. Only AI-generated images found. Cannot generate from AI images.', 'imagegecko' ) );
+            return new WP_Error( 'imagegecko_no_featured_image', \__( 'Product must have a featured image (non-AI-generated) to use as the base for generation.', 'imagegecko' ) );
         }
         
-        $this->logger->info( 'Using original image for generation.', [ 
+        $this->logger->info( 'Using featured image for generation.', [ 
             'product_id' => $product_id, 
             'attachment_id' => $attachment_id,
-            'is_featured' => $attachment_id === (int) $product->get_image_id()
+            'is_featured' => true
         ] );
 
         $file_path = \get_attached_file( $attachment_id );
@@ -82,9 +83,22 @@ class Image_Handler {
             return new WP_Error( 'imagegecko_invalid_payload', \__( 'API response missing image data.', 'imagegecko' ) );
         }
 
+        // Get product name for filename and alt text
+        $product_name = $this->get_product_name( $product_id );
+        
+        // Generate unique hash (8-character hexadecimal)
+        $unique_hash = \substr( \md5( \uniqid( '', true ) ), 0, 8 );
+        
+        // Determine file extension from payload or default
+        $file_extension = $this->get_file_extension_from_payload( $payload );
+        
+        // Generate filename: {productName}-imagegecko-{uniqueHash}.{ext}
+        $sanitized_product_name = \sanitize_file_name( $product_name );
+        $filename = $sanitized_product_name . '-imagegecko-' . $unique_hash . '.' . $file_extension;
+
         $file_bits = ! empty( $payload['image_base64'] )
-            ? $this->create_temp_file_from_base64( $payload['image_base64'], $payload['file_name'] ?? 'imagegecko-generated.jpg' )
-            : $this->download_to_temp( $payload['image_url'], $payload['file_name'] ?? null );
+            ? $this->create_temp_file_from_base64( $payload['image_base64'], $filename )
+            : $this->download_to_temp( $payload['image_url'], $filename );
 
         if ( \is_wp_error( $file_bits ) ) {
             return $file_bits;
@@ -100,8 +114,8 @@ class Image_Handler {
             'size'     => filesize( $file_bits['tmp_name'] ),
         ];
 
-        /* translators: %d: Product ID */
-        $alt_text      = sprintf( \__( 'ImageGecko generated image for product %d', 'imagegecko' ), $product_id );
+        // Alt text is just the product name
+        $alt_text = $product_name;
         $post_overrides = [
             'post_title' => $alt_text,
             'post_content' => '',
@@ -121,14 +135,8 @@ class Image_Handler {
         \update_post_meta( $attachment_id, '_imagegecko_product_id', $product_id );
         \update_post_meta( $attachment_id, '_imagegecko_generated_date', current_time( 'mysql' ) );
         
-        // First, add the generated image to the gallery
+        // Add the generated image to the product gallery (not as featured image)
         $this->append_to_gallery( $product_id, $attachment_id );
-        
-        // Then, if we should set it as featured image, preserve the current featured image in gallery first
-        if ( \apply_filters( 'imagegecko_set_featured_image', true, $product_id, $attachment_id, $payload ) ) {
-            $this->preserve_current_featured_in_gallery( $product_id );
-            \set_post_thumbnail( $product_id, $attachment_id );
-        }
 
         \update_post_meta( $product_id, '_imagegecko_generated_attachment', $attachment_id );
         \update_post_meta( $product_id, '_imagegecko_generated_at', time() );
@@ -207,24 +215,10 @@ class Image_Handler {
         }
     }
 
-    /**
-     * Preserve the current featured image by adding it to the gallery before setting a new featured image.
-     */
-    private function preserve_current_featured_in_gallery( int $product_id ): void {
-        $current_featured_id = (int) \get_post_thumbnail_id( $product_id );
-        
-        // If there's no current featured image, nothing to preserve
-        if ( ! $current_featured_id ) {
-            return;
-        }
-        
-        // Add the current featured image to the gallery to preserve it
-        $this->append_to_gallery( $product_id, $current_featured_id );
-    }
 
     /**
-     * Find the first original (non-AI-generated) image for the product.
-     * Checks featured image first, then gallery images.
+     * Find the product's featured image (must be original, non-AI-generated).
+     * Always uses the featured image as the base for generation.
      */
     private function find_original_image( int $product_id ): int {
         if ( ! \function_exists( '\wc_get_product' ) ) {
@@ -236,22 +230,18 @@ class Image_Handler {
             return 0;
         }
 
-        // First, check if the featured image is original (not AI-generated)
+        // Always use the featured image as the base
         $featured_id = (int) $product->get_image_id();
-        if ( $featured_id && $this->is_original_image( $featured_id, $product_id ) ) {
-            return $featured_id;
+        if ( ! $featured_id ) {
+            return 0;
         }
 
-        // If featured image is AI-generated or missing, check gallery images
-        $gallery_ids = $this->get_gallery_image_ids( $product_id );
-        foreach ( $gallery_ids as $attachment_id ) {
-            if ( $this->is_original_image( $attachment_id, $product_id ) ) {
-                return $attachment_id;
-            }
+        // Verify the featured image is original (not AI-generated)
+        if ( ! $this->is_original_image( $featured_id, $product_id ) ) {
+            return 0;
         }
 
-        // No original images found
-        return 0;
+        return $featured_id;
     }
 
     /**
@@ -342,5 +332,63 @@ class Image_Handler {
         
         $ids = explode( ',', $gallery );
         return array_filter( array_map( 'intval', $ids ) );
+    }
+
+    /**
+     * Get product name for use in filename and alt text.
+     */
+    private function get_product_name( int $product_id ): string {
+        if ( ! \function_exists( '\wc_get_product' ) ) {
+            $post = \get_post( $product_id );
+            return $post ? $post->post_title : '';
+        }
+
+        $product = \wc_get_product( $product_id );
+        if ( ! $product ) {
+            return '';
+        }
+
+        // Use formatted name if available, otherwise fall back to title
+        $name = $product->get_formatted_name();
+        if ( empty( $name ) ) {
+            $name = $product->get_name();
+        }
+        
+        if ( empty( $name ) ) {
+            $name = \get_the_title( $product_id );
+        }
+
+        return $name ?: '';
+    }
+
+    /**
+     * Determine file extension from payload or default to png.
+     */
+    private function get_file_extension_from_payload( array $payload ): string {
+        // Check if file_name is provided and has extension
+        if ( ! empty( $payload['file_name'] ) ) {
+            $file_info = \wp_check_filetype( $payload['file_name'] );
+            if ( ! empty( $file_info['ext'] ) ) {
+                return $file_info['ext'];
+            }
+        }
+
+        // Check mime type if available
+        if ( ! empty( $payload['mime_type'] ) ) {
+            $mime_to_ext = [
+                'image/jpeg' => 'jpg',
+                'image/jpg' => 'jpg',
+                'image/png' => 'png',
+                'image/gif' => 'gif',
+                'image/webp' => 'webp',
+            ];
+            
+            if ( isset( $mime_to_ext[ $payload['mime_type'] ] ) ) {
+                return $mime_to_ext[ $payload['mime_type'] ];
+            }
+        }
+
+        // Default to png
+        return 'png';
     }
 }

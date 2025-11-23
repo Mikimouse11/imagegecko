@@ -2,8 +2,6 @@
 
 namespace ImageGecko;
 
-use WP_Post;
-
 /**
  * Coordinates end-to-end generation requests.
  */
@@ -40,10 +38,6 @@ class Generation_Controller {
     }
 
     public function init(): void {
-        \add_filter( 'bulk_actions-edit-product', [ $this, 'register_bulk_action' ] );
-        \add_filter( 'handle_bulk_actions-edit-product', [ $this, 'handle_bulk_action' ], 10, 3 );
-        \add_filter( 'post_row_actions', [ $this, 'add_row_action' ], 10, 2 );
-        \add_action( 'admin_init', [ $this, 'maybe_handle_single_trigger' ] );
         \add_action( 'admin_notices', [ $this, 'render_admin_notices' ] );
 
         \add_action( 'wp_ajax_imagegecko_start_generation', [ $this, 'ajax_start_generation' ] );
@@ -56,73 +50,6 @@ class Generation_Controller {
         }
     }
 
-    public function register_bulk_action( array $actions ): array {
-        $actions['imagegecko_generate'] = \__( 'Generate AI Photos (ImageGecko)', 'imagegecko' );
-
-        return $actions;
-    }
-
-    public function handle_bulk_action( string $redirect_url, string $action, array $post_ids ): string {
-        if ( 'imagegecko_generate' !== $action ) {
-            return $redirect_url;
-        }
-
-        $queued = 0;
-        foreach ( $post_ids as $post_id ) {
-            if ( $this->queue_generation( (int) $post_id ) ) {
-                $queued++;
-            }
-        }
-
-        /* translators: %d: Number of products queued */
-        $this->enqueue_notice( 'success', sprintf( \_n( '%d product queued for ImageGecko generation.', '%d products queued for ImageGecko generation.', $queued, 'imagegecko' ), $queued ) );
-
-        return \add_query_arg( 'imagegecko_queued', $queued, $redirect_url );
-    }
-
-    public function add_row_action( array $actions, WP_Post $post ): array {
-        if ( 'product' !== $post->post_type ) {
-            return $actions;
-        }
-
-        $url = \wp_nonce_url(
-            \add_query_arg(
-                [
-                    'imagegecko_generate' => $post->ID,
-                ]
-            ),
-            'imagegecko_generate_' . $post->ID
-        );
-
-        $actions['imagegecko_generate'] = sprintf(
-            '<a href="%1$s">%2$s</a>',
-            \esc_url( $url ),
-            \esc_html__( 'Generate AI Photo', 'imagegecko' )
-        );
-
-        return $actions;
-    }
-
-    public function maybe_handle_single_trigger(): void {
-        if ( empty( $_GET['imagegecko_generate'] ) ) {
-            return;
-        }
-
-        $product_id = isset( $_GET['imagegecko_generate'] ) ? absint( $_GET['imagegecko_generate'] ) : 0;
-        $nonce      = isset( $_GET['_wpnonce'] ) ? \sanitize_text_field( \wp_unslash( $_GET['_wpnonce'] ) ) : '';
-
-        if ( ! \wp_verify_nonce( $nonce, 'imagegecko_generate_' . $product_id ) ) {
-            $this->enqueue_notice( 'error', \__( 'Security check failed. Please try again.', 'imagegecko' ) );
-            return;
-        }
-
-        if ( $this->queue_generation( $product_id ) ) {
-            $this->enqueue_notice( 'success', \__( 'Product queued for ImageGecko generation.', 'imagegecko' ) );
-        }
-
-        \wp_safe_redirect( \remove_query_arg( [ 'imagegecko_generate', '_wpnonce' ] ) );
-        exit;
-    }
 
     public function render_admin_notices(): void {
         $user_id = \get_current_user_id();
@@ -418,15 +345,11 @@ class Generation_Controller {
         $media_payload = [
             'image_base64' => $response_data['imageBase64'] ?? null,
             'image_url'    => $response_data['image_url'] ?? null,
-            'file_name'    => $response_data['file_name'] ?? null,
+            'mime_type'    => $response_data['mime_type'] ?? $response_data['mimeType'] ?? 'image/png',
             'prompt'       => $response_data['prompt'] ?? $prompt,
         ];
         
-        // Determine appropriate file extension based on response
-        if ( empty( $media_payload['file_name'] ) ) {
-            // Default to PNG since the API typically returns PNG images
-            $media_payload['file_name'] = 'imagegecko-generated-' . time() . '.png';
-        }
+        // Note: file_name will be generated in persist_generated_media() based on product name
         
         // Validate that we have image data
         if ( empty( $media_payload['image_base64'] ) && empty( $media_payload['image_url'] ) ) {

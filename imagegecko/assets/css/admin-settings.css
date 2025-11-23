@@ -79,6 +79,16 @@
     min-width: 320px;
 }
 
+.imagegecko-autocomplete--disabled {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.imagegecko-autocomplete--disabled .imagegecko-autocomplete__input {
+    background-color: #f0f0f1;
+    cursor: not-allowed;
+}
+
 .imagegecko-autocomplete__empty {
     margin: 0 0 8px;
     color: #646970;

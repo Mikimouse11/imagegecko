@@ -121,7 +121,7 @@ class Admin_Settings_Page {
             class="large-text"
             rows="4"
         ><?php echo \esc_textarea( $settings['default_prompt'] ?? '' ); ?></textarea>
-        <p class="description"><?php \esc_html_e( 'Describe the look-and-feel you want for generated photos. You can override per request later.', 'imagegecko' ); ?></p>
+        <p class="description"><?php \esc_html_e( 'Add detailed instructions forwhat the AI should do with your product photos', 'imagegecko' ); ?></p>
         <?php
     }
 
@@ -156,6 +156,8 @@ class Admin_Settings_Page {
         <div
             class="imagegecko-autocomplete"
             data-lookup="categories"
+            data-field-type="categories"
+            data-opposite-field="imagegecko_selected_products"
             data-placeholder="<?php echo \esc_attr__( 'Type to search product categories…', 'imagegecko' ); ?>"
             data-remove-label="<?php echo \esc_attr__( 'Remove category', 'imagegecko' ); ?>"
         >
@@ -207,7 +209,7 @@ class Admin_Settings_Page {
                 ?>
             </p>
         </div>
-        <p class="description"><?php \esc_html_e( 'Categories help you bulk-enable ImageGecko. We show the number of published products in each category so you can estimate credit usage.', 'imagegecko' ); ?></p>
+        <p class="description"><?php \esc_html_e( 'Select the categories that you want to generate images for. New images will be generated for all products in the selected categories.', 'imagegecko' ); ?></p>
         <?php
     }
 
@@ -244,6 +246,8 @@ class Admin_Settings_Page {
         <div
             class="imagegecko-autocomplete"
             data-lookup="products"
+            data-field-type="products"
+            data-opposite-field="imagegecko_selected_categories"
             data-placeholder="<?php echo \esc_attr__( 'Type to search products…', 'imagegecko' ); ?>"
             data-remove-label="<?php echo \esc_attr__( 'Remove product', 'imagegecko' ); ?>"
         >
@@ -276,7 +280,7 @@ class Admin_Settings_Page {
             </div>
             <p class="imagegecko-autocomplete__empty"<?php echo empty( $selected_ids ) ? '' : ' style="display:none;"'; ?>><?php \esc_html_e( 'No products selected yet.', 'imagegecko' ); ?></p>
         </div>
-        <p class="description"><?php \esc_html_e( 'Leave blank to include all products (subject to category filtering). Start typing to find products by name.', 'imagegecko' ); ?></p>
+        <p class="description"><?php \esc_html_e( 'Select products here if you want to generate images for specific products only.', 'imagegecko' ); ?></p>
         <?php
     }
 
@@ -313,10 +317,10 @@ class Admin_Settings_Page {
                     'duplicate' => \__( 'Already selected.', 'imagegecko' ),
                     'remove'    => \__( 'Remove', 'imagegecko' ),
                     /* translators: %d: Number of published products */
-                    'categorySummarySingular' => \__( 'Selected categories currently cover approximately %d published product.', 'imagegecko' ),
+                    'categorySummarySingular' => \__( 'Selected category contains %d products.', 'imagegecko' ),
                     /* translators: %d: Number of published products */
-                    'categorySummaryPlural'   => \__( 'Selected categories currently cover approximately %d published products.', 'imagegecko' ),
-                    'startError'              => \__( 'Unable to prepare the generation run. Please try again.', 'imagegecko' ),
+                    'categorySummaryPlural'   => \__( 'Selected categories contain %d products.', 'imagegecko' ),
+                    'startError'              => \__( 'Unable to start the image generation process. Please contact support.', 'imagegecko' ),
                     'processing'              => \__( 'Processing…', 'imagegecko' ),
                     'queued'                  => \__( 'Queued', 'imagegecko' ),
                     'completed'               => \__( 'Completed', 'imagegecko' ),
@@ -340,6 +344,7 @@ class Admin_Settings_Page {
                     'close'                   => \__( 'Close', 'imagegecko' ),
                     /* translators: %d: Number of batches processing */
                     'batchProcessing'         => \__( ' (Processing %d batches simultaneously)', 'imagegecko' ),
+                    'fieldDisabled'           => \__( 'Clear selections in the other field to enable this field', 'imagegecko' ),
                 ],
             ]
         );
@@ -513,7 +518,7 @@ class Admin_Settings_Page {
             <div class="imagegecko-steps">
                 <section class="imagegecko-step imagegecko-step--api">
                     <h2><?php \esc_html_e( 'Step 1: Connect to ContentGecko', 'imagegecko' ); ?></h2>
-                    <p><?php \esc_html_e( 'Paste the API key from your ContentGecko dashboard. This unlocks the rest of the workflow.', 'imagegecko' ); ?></p>
+                    <p><?php \esc_html_e( 'Paste the API key from the email you received.', 'imagegecko' ); ?></p>
                     <form method="post" action="<?php echo \esc_url( \admin_url( 'admin-post.php' ) ); ?>">
                         <?php \wp_nonce_field( self::NONCE_ACTION, '_imagegecko_nonce' ); ?>
                         <input type="hidden" name="action" value="imagegecko_save_api_key" />
@@ -538,7 +543,7 @@ class Admin_Settings_Page {
                         </form>
                         <section class="imagegecko-step imagegecko-step--run">
                             <h2><?php \esc_html_e( 'Step 3: Save & Enhance Products', 'imagegecko' ); ?></h2>
-                            <p><?php \esc_html_e( 'When you are ready, click GO. ImageGecko will save your configuration and generate new lifestyle imagery for each product automatically.', 'imagegecko' ); ?></p>
+                            <p><?php \esc_html_e( 'When you are ready, click GO. Generated images will be saved to each product\'s gallery.', 'imagegecko' ); ?></p>
                             <button type="button" class="button button-primary" id="imagegecko-go-button" data-state="idle"><?php \esc_html_e( 'GO', 'imagegecko' ); ?></button>
                             <div id="imagegecko-progress" class="imagegecko-progress" style="display:none;">
                                 <p class="imagegecko-progress__summary"></p>

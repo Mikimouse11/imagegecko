@@ -15,6 +15,15 @@
         this.$empty = $container.find('.imagegecko-autocomplete__empty');
         this.$summary = $container.find('[data-summary-target="categories"]');
         this.inputName = this.$selections.data('name');
+        
+        // Store reference to opposite field ID for mutual exclusivity (will be resolved after initialization)
+        var oppositeFieldId = $container.data('opposite-field');
+        if (oppositeFieldId) {
+            this.oppositeFieldId = oppositeFieldId;
+        }
+        
+        this.oppositeAutocomplete = null;
+        this.$oppositeField = null;
 
         this.init();
     }
@@ -31,6 +40,9 @@
             $(this).closest('.imagegecko-pill').remove();
             self.updateState();
         });
+        
+        // Store instance reference for mutual exclusivity
+        $container.data('autocomplete-instance', this);
 
         this.$input.autocomplete({
             minLength: 2,
@@ -124,6 +136,7 @@
 
         this.$selections.append($pill);
         this.updateState();
+        this.updateMutualExclusivity();
     };
 
     Autocomplete.prototype.updateState = function () {
@@ -135,6 +148,48 @@
 
         if (this.lookup === 'categories') {
             this.updateSummary();
+        }
+        
+        this.updateMutualExclusivity();
+    };
+
+    Autocomplete.prototype.updateMutualExclusivity = function () {
+        if (!this.$oppositeField || !this.$oppositeField.length) {
+            return;
+        }
+
+        var hasSelections = this.$selections.children().length > 0;
+        var $oppositeInput = this.$oppositeField.find('.imagegecko-autocomplete__input');
+        var $oppositeSelections = this.$oppositeField.find('.imagegecko-autocomplete__selections');
+        var $oppositeContainer = this.$oppositeField;
+        var oppositeHasSelections = $oppositeSelections.children().length > 0;
+
+        if (hasSelections) {
+            // Disable opposite field
+            $oppositeInput.prop('disabled', true).attr('placeholder', imageGeckoAdmin.i18n.fieldDisabled || 'Clear selections in the other field to enable this field');
+            $oppositeContainer.addClass('imagegecko-autocomplete--disabled');
+            
+            // Clear opposite field selections if any exist
+            if (oppositeHasSelections) {
+                $oppositeSelections.empty();
+                // Update opposite field's UI state (but don't call updateMutualExclusivity to avoid infinite loop)
+                if (this.oppositeAutocomplete) {
+                    if (this.oppositeAutocomplete.$empty) {
+                        this.oppositeAutocomplete.$empty.show();
+                    }
+                    if (this.oppositeAutocomplete.lookup === 'categories' && typeof this.oppositeAutocomplete.updateSummary === 'function') {
+                        this.oppositeAutocomplete.updateSummary();
+                    }
+                }
+            }
+        } else {
+            // Enable opposite field if it's not disabled by its own selections
+            if (!oppositeHasSelections) {
+                $oppositeInput.prop('disabled', false);
+                var originalPlaceholder = this.$oppositeField.data('placeholder') || '';
+                $oppositeInput.attr('placeholder', originalPlaceholder);
+                $oppositeContainer.removeClass('imagegecko-autocomplete--disabled');
+            }
         }
     };
 
@@ -881,8 +936,30 @@
     };
 
     $(function () {
+        var autocompleteInstances = [];
+        
+        // Initialize all autocomplete fields
         $('.imagegecko-autocomplete').each(function () {
-            new Autocomplete($(this));
+            var instance = new Autocomplete($(this));
+            autocompleteInstances.push(instance);
+        });
+        
+        // Link opposite fields after all instances are created
+        autocompleteInstances.forEach(function(instance) {
+            if (instance.oppositeFieldId) {
+                var $oppositeContainer = $('#' + instance.oppositeFieldId).closest('.imagegecko-autocomplete');
+                if ($oppositeContainer.length) {
+                    instance.$oppositeField = $oppositeContainer;
+                    // Find the opposite instance
+                    autocompleteInstances.forEach(function(otherInstance) {
+                        if (otherInstance.$container[0] === $oppositeContainer[0]) {
+                            instance.oppositeAutocomplete = otherInstance;
+                        }
+                    });
+                }
+            }
+            // Check initial state
+            instance.updateMutualExclusivity();
         });
 
         new GenerationRunner({
