@@ -546,12 +546,44 @@ class Generation_Controller {
                 $this->image_handler->restore_original_featured_image( $product_id );
             }
             
-            // Clean up product meta if this was the current generated attachment
+            // Clean up all product meta related to this attachment
             if ( $product_id ) {
+                // Remove all instances of this attachment ID from the generated attachment meta
+                // get_post_meta with false returns all values, but we need to delete each instance
+                $meta_ids = $GLOBALS['wpdb']->get_col( $GLOBALS['wpdb']->prepare(
+                    "SELECT meta_id FROM {$GLOBALS['wpdb']->postmeta} WHERE post_id = %d AND meta_key = %s AND meta_value = %s",
+                    $product_id,
+                    '_imagegecko_generated_attachment',
+                    (string) $attachment_id
+                ) );
+                
+                foreach ( $meta_ids as $meta_id ) {
+                    \delete_metadata_by_mid( 'post', $meta_id );
+                }
+                
+                // Also delete the single meta value if it matches (in case delete_metadata_by_mid didn't catch it)
                 $current_generated = (int) \get_post_meta( $product_id, '_imagegecko_generated_attachment', true );
                 if ( $current_generated === $attachment_id ) {
                     \delete_post_meta( $product_id, '_imagegecko_generated_attachment' );
                     \delete_post_meta( $product_id, '_imagegecko_generated_at' );
+                }
+                
+                // Clear status metadata to allow re-generation
+                \delete_post_meta( $product_id, '_imagegecko_status' );
+                \delete_post_meta( $product_id, '_imagegecko_status_message' );
+                
+                // Also check if this attachment exists in the gallery and remove it
+                $gallery = \get_post_meta( $product_id, '_product_image_gallery', true );
+                if ( ! empty( $gallery ) ) {
+                    $gallery_ids = array_map( 'intval', explode( ',', $gallery ) );
+                    $gallery_ids = array_filter( $gallery_ids, function( $id ) use ( $attachment_id ) {
+                        return $id !== $attachment_id;
+                    } );
+                    if ( empty( $gallery_ids ) ) {
+                        \delete_post_meta( $product_id, '_product_image_gallery' );
+                    } else {
+                        \update_post_meta( $product_id, '_product_image_gallery', implode( ',', $gallery_ids ) );
+                    }
                 }
             }
 

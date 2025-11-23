@@ -119,7 +119,7 @@ class Image_Handler {
         $post_overrides = [
             'post_title' => $alt_text,
             'post_content' => '',
-            'post_excerpt' => $payload['prompt'] ?? '',
+            'post_excerpt' => '',
         ];
 
         $attachment_id = \media_handle_sideload( $file_array, $product_id, $alt_text, $post_overrides );
@@ -267,6 +267,7 @@ class Image_Handler {
 
     /**
      * Get all AI-generated attachment IDs for a product.
+     * Only returns attachments that actually exist and are marked as generated.
      */
     private function get_generated_attachment_ids( int $product_id ): array {
         $generated_ids = [];
@@ -274,7 +275,14 @@ class Image_Handler {
         // Get the current generated attachment (most recent)
         $current_generated = (int) \get_post_meta( $product_id, '_imagegecko_generated_attachment', true );
         if ( $current_generated ) {
-            $generated_ids[] = $current_generated;
+            // Verify the attachment still exists and is marked as generated
+            $attachment = \get_post( $current_generated );
+            if ( $attachment && 'attachment' === $attachment->post_type ) {
+                $is_generated = \get_post_meta( $current_generated, '_imagegecko_generated', true );
+                if ( $is_generated ) {
+                    $generated_ids[] = $current_generated;
+                }
+            }
         }
         
         // Get all historical generated attachments (if we store them)
@@ -283,7 +291,14 @@ class Image_Handler {
             foreach ( $all_generated as $id ) {
                 $id = (int) $id;
                 if ( $id && ! in_array( $id, $generated_ids, true ) ) {
-                    $generated_ids[] = $id;
+                    // Verify the attachment still exists and is marked as generated
+                    $attachment = \get_post( $id );
+                    if ( $attachment && 'attachment' === $attachment->post_type ) {
+                        $is_generated = \get_post_meta( $id, '_imagegecko_generated', true );
+                        if ( $is_generated ) {
+                            $generated_ids[] = $id;
+                        }
+                    }
                 }
             }
         }

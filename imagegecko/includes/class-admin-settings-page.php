@@ -121,7 +121,7 @@ class Admin_Settings_Page {
             class="large-text"
             rows="4"
         ><?php echo \esc_textarea( $settings['default_prompt'] ?? '' ); ?></textarea>
-        <p class="description"><?php \esc_html_e( 'Add detailed instructions forwhat the AI should do with your product photos', 'imagegecko' ); ?></p>
+        <p class="description"><?php \esc_html_e( 'Add detailed instructions for what the AI should do with your product photos', 'imagegecko' ); ?></p>
         <?php
     }
 

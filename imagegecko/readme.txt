@@ -1,10 +1,10 @@
 === ImageGecko AI Product Images ===
-Contributors: ContentGecko
-Tags: woocommerce, ai, images, product photos, lifestyle
-Requires at least: 5.8
-Tested up to: 6.8
+Contributors: ristorehemagi
+Tags: woocommerce, ai, images, product photos
+Requires at least: 6.0
+Tested up to: 6.8.3
 Requires PHP: 7.4
-Stable tag: 0.1.2
+Stable tag: 1.1.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
