@@ -449,16 +449,23 @@ class Admin_Settings_Page {
         // Sanitize the settings using the same method as the regular form submission
         $sanitized = $this->settings->sanitize_settings( $config_data );
         
+        // Avoid treating identical values as a failure
+        $current = \get_option( Settings::OPTION_KEY, [] );
+        if ( $current === $sanitized ) {
+            $this->logger->info( 'Configuration unchanged; skipping save.' );
+            \wp_send_json_success( [ 'message' => \__( 'Configuration saved.', 'imagegecko' ) ] );
+        }
+
         // Save the settings
         $saved = \update_option( Settings::OPTION_KEY, $sanitized );
         
-        if ( $saved ) {
-            $this->logger->info( 'Configuration saved successfully via AJAX.' );
-            \wp_send_json_success( [ 'message' => \__( 'Configuration saved.', 'imagegecko' ) ] );
-        } else {
+        if ( false === $saved ) {
             $this->logger->error( 'Failed to save configuration via AJAX.' );
             \wp_send_json_error( [ 'message' => \__( 'Failed to save configuration.', 'imagegecko' ) ], 500 );
         }
+
+        $this->logger->info( 'Configuration saved successfully via AJAX.' );
+        \wp_send_json_success( [ 'message' => \__( 'Configuration saved.', 'imagegecko' ) ] );
     }
 
     private function guard_ajax_request(): void {

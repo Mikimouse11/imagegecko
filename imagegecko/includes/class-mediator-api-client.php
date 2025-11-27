@@ -59,7 +59,7 @@ class Mediator_Api_Client {
         ];
 
         $args = [
-            'timeout' => 120,
+            'timeout' => 300,
             'headers' => [
                 'Authorization' => 'Bearer ' . $api_key,
                 'Content-Type'  => 'application/json',
