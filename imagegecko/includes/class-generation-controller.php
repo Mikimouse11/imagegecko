@@ -196,6 +196,15 @@ class Generation_Controller {
 
             $this->logger->info( 'Starting AJAX generation workflow.' );
             
+            // Check if anything is selected
+            $selected_products   = array_filter( (array) $this->settings->get_selected_products() );
+            $selected_categories = array_filter( (array) $this->settings->get_selected_categories() );
+            
+            if ( empty( $selected_products ) && empty( $selected_categories ) ) {
+                $this->logger->info( 'No products or categories selected.' );
+                \wp_send_json_error( [ 'message' => \__( 'Please select at least one product or category before running.', 'imagegecko' ) ], 400 );
+            }
+            
             $product_ids = $this->resolve_target_products();
             $this->logger->info( 'Resolved target products.', [ 'count' => count( $product_ids ), 'product_ids' => $product_ids ] );
 
@@ -227,8 +236,8 @@ class Generation_Controller {
             ];
 
             if ( empty( $products ) ) {
-                $data['message'] = \__( 'No products match your current targeting rules.', 'imagegecko' );
-                $this->logger->info( 'No products found matching targeting rules.' );
+                $data['message'] = \__( 'No published products found in the selected categories.', 'imagegecko' );
+                $this->logger->info( 'No products found in selected categories.' );
             }
 
             $this->logger->info( 'AJAX start generation completed successfully.', [ 'product_count' => count( $products ) ] );
@@ -385,10 +394,19 @@ class Generation_Controller {
     }
 
     private function resolve_target_products(): array {
-        $products   = array_map( 'intval', (array) $this->settings->get_selected_products() );
-        $categories = array_map( 'intval', (array) $this->settings->get_selected_categories() );
+        $selected_products   = array_map( 'intval', (array) $this->settings->get_selected_products() );
+        $selected_products   = array_filter( $selected_products );
+        $selected_categories = array_map( 'intval', (array) $this->settings->get_selected_categories() );
+        $selected_categories = array_filter( $selected_categories );
 
-        if ( ! empty( $categories ) ) {
+        // If specific products are selected, use only those (ignore categories)
+        if ( ! empty( $selected_products ) ) {
+            $this->logger->info( 'Using selected products only.', [ 'count' => count( $selected_products ) ] );
+            return array_values( array_unique( $selected_products ) );
+        }
+
+        // If categories are selected (but no specific products), get products from those categories
+        if ( ! empty( $selected_categories ) ) {
             $category_query = new \WP_Query(
                 [
                     'post_type'      => 'product',
@@ -400,40 +418,26 @@ class Generation_Controller {
                         [
                             'taxonomy' => 'product_cat',
                             'field'    => 'term_id',
-                            'terms'    => $categories,
+                            'terms'    => $selected_categories,
                         ],
                     ],
                 ]
             );
 
+            $products = [];
             if ( ! empty( $category_query->posts ) ) {
-                $products = array_merge( $products, array_map( 'intval', $category_query->posts ) );
+                $products = array_map( 'intval', $category_query->posts );
             }
 
             \wp_reset_postdata();
+            
+            $this->logger->info( 'Using products from selected categories.', [ 'category_count' => count( $selected_categories ), 'product_count' => count( $products ) ] );
+            return array_values( array_unique( $products ) );
         }
 
-        if ( empty( $products ) ) {
-            $all_products = new \WP_Query(
-                [
-                    'post_type'      => 'product',
-                    'fields'         => 'ids',
-                    'posts_per_page' => -1,
-                    'post_status'    => [ 'publish' ],
-                    'no_found_rows'  => true,
-                ]
-            );
-
-            if ( ! empty( $all_products->posts ) ) {
-                $products = array_map( 'intval', $all_products->posts );
-            }
-
-            \wp_reset_postdata();
-        }
-
-        $products = array_unique( array_filter( $products ) );
-
-        return array_values( $products );
+        // Nothing selected - return empty array (will trigger error in ajax_start_generation)
+        $this->logger->info( 'No products or categories selected.' );
+        return [];
     }
 
     private function verify_ajax_request(): void {

@@ -472,7 +472,7 @@
                 completedInBatch++;
                 if (completedInBatch === batch.length) {
                     self.activeBatches--;
-                    // Process next batch when all products in current batch are done
+                    // Process next batch only after current batch is fully complete
                     self.processNext();
                 }
             }).fail(function (xhr, status, error) {
@@ -487,19 +487,14 @@
                 completedInBatch++;
                 if (completedInBatch === batch.length) {
                     self.activeBatches--;
-                    // Continue with next batch even if some failed
+                    // Process next batch only after current batch is fully complete
                     self.processNext();
                 }
             });
         });
-
-        // If we still have items in queue, start processing the next batch
-        if (this.queue.length > 0) {
-            // Small delay to prevent overwhelming the server
-            setTimeout(function() {
-                self.processNext();
-            }, 100);
-        }
+        
+        // Note: Next batch will only start when all products in current batch complete
+        // (triggered by the completedInBatch check above)
     };
 
     GenerationRunner.prototype.handleProcessFailure = function (productId) {
