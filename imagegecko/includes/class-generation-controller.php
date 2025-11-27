@@ -345,16 +345,17 @@ class Generation_Controller {
             'product_id' => $product_id,
             'response_keys' => array_keys( $api_response['data'] ?? [] ),
             'has_imageBase64' => isset( $api_response['data']['imageBase64'] ),
-            'imageBase64_length' => isset( $api_response['data']['imageBase64'] ) ? strlen( $api_response['data']['imageBase64'] ) : 0
+            'imageBase64_length' => isset( $api_response['data']['imageBase64'] ) ? strlen( $api_response['data']['imageBase64'] ) : 0,
+            'remaining_credits' => $api_response['data']['remainingCredits'] ?? null,
         ] );
 
         // The API returns imageBase64 directly in the response root, not nested under 'data'
         $response_data = $api_response['data'] ?? [];
-        
+
         $media_payload = [
             'image_base64' => $response_data['imageBase64'] ?? null,
-            'image_url'    => $response_data['image_url'] ?? null,
-            'mime_type'    => $response_data['mime_type'] ?? $response_data['mimeType'] ?? 'image/png',
+            'image_url'    => null,
+            'mime_type'    => $response_data['mimeType'] ?? 'image/png',
             'prompt'       => $response_data['prompt'] ?? $prompt,
         ];
         

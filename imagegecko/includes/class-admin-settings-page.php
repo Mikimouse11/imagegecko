@@ -61,14 +61,14 @@ class Admin_Settings_Page {
 
         \add_settings_section(
             'imagegecko_generation',
-            \__( 'Generation Defaults', 'imagegecko' ),
+            \__( 'Generation Settings', 'imagegecko' ),
             [ $this, 'render_generation_intro' ],
             self::MENU_SLUG
         );
 
         \add_settings_field(
             'imagegecko_default_prompt',
-            \__( 'Default Style Prompt', 'imagegecko' ),
+            \__( 'Style Prompt', 'imagegecko' ),
             [ $this, 'render_prompt_field' ],
             self::MENU_SLUG,
             'imagegecko_generation'
@@ -93,7 +93,7 @@ class Admin_Settings_Page {
     }
 
     public function render_generation_intro(): void {
-        echo '<p>' . \esc_html__( 'Define the default styling prompt and which products ImageGecko should enhance when you run the workflow.', 'imagegecko' ) . '</p>';
+        echo '<p>' . \esc_html__( 'Define the styling prompt and which products ImageGecko should enhance when you run the workflow.', 'imagegecko' ) . '</p>';
     }
 
     public function render_api_key_field(): void {

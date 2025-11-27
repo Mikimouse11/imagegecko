@@ -22,7 +22,7 @@ See [LICENSE.txt](LICENSE.txt) for the full license text.
 
 ## Features
 - Securely store ContentGecko API key in WordPress options (encrypted when OpenSSL is available).
-- Configure default style prompt plus targeted categories/products from the settings page under WooCommerce → ImageGecko AI Photos.
+- Configure style prompt plus targeted categories/products from the settings page under WooCommerce → ImageGecko AI Photos.
 - Bulk or single-product actions to enqueue image generation jobs.
 - Asynchronous processing via Action Scheduler when available, with WP-Cron fallback.
 - Automatically sideload returned media into the Media Library, set as the featured image, and append to the product gallery.
@@ -33,7 +33,7 @@ See [LICENSE.txt](LICENSE.txt) for the full license text.
 2. Activate **ImageGecko AI Photos** inside your WordPress admin.
 3. Visit **WooCommerce → ImageGecko AI Photos**:
    - Paste the API key provided in your ContentGecko dashboard.
-   - Enter a default style prompt describing the photoshoot aesthetic you expect.
+   - Enter a style prompt describing the photoshoot aesthetic you expect.
    - Optionally pick specific product categories or individual products to limit generation.
 4. From the Products list:
    - Use the bulk action **Generate AI Photos (ImageGecko)** to enqueue multiple products, or
@@ -59,28 +59,20 @@ See [LICENSE.txt](LICENSE.txt) for the full license text.
     "prompt": "Studio lit model photo...",
     "image": {
       "base64": "...",
-      "mime_type": "image/jpeg",
-      "file_name": "original.jpg"
-    },
-    "metadata": {
-      "source_image_id": 456,
-      "categories": [1,2],
-      "product_sku": "SKU-123"
+      "mimeType": "image/jpeg"
     }
   }
   ```
 - Expected response (example):
   ```json
   {
-    "image_url": "https://cdn.contentgecko.io/.../generated.jpg",
-    "image_base64": null,
-    "file_name": "generated.jpg",
-    "mime_type": "image/jpeg",
-    "prompt": "Studio lit model photo..."
+    "imageBase64": "...",
+    "mimeType": "image/webp",
+    "model": "gemini-3-pro-image-preview",
+    "remainingCredits": 42
   }
   ```
-
-The plugin will consume either `image_base64` or `image_url` (preferring base64 when both are present).
+The plugin consumes the `imageBase64` field provided by the API.
 
 ## Status Metadata
 - `_imagegecko_status`: `queued`, `processing`, `completed`, or `failed`.
