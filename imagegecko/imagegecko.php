@@ -1,10 +1,10 @@
 <?php
 /**
- * Plugin Name: ImageGecko AI Photos
+ * Plugin Name: ImageGecko AI Product Images
  * Plugin URI: https://contentgecko.io/woocommerce-product-image-generator/
  * Description: Generates lifestyle images for WooCommerce products using AI.
- * Author: ContentGecko
- * Version: 1.1.5
+ * Author: ristorehemagi
+ * Version: 1.0.0
  * Requires at least: 6.0
  * Tested up to: 6.8
  * Requires PHP: 7.4
@@ -26,7 +26,7 @@ if ( ! defined( 'IMAGEGECKO_PLUGIN_DIR' ) ) {
 }
 
 if ( ! defined( 'IMAGEGECKO_VERSION' ) ) {
-    define( 'IMAGEGECKO_VERSION', '0.1.2' );
+    define( 'IMAGEGECKO_VERSION', '1.0.0' );
 }
 
 // Basic PSR-4 style autoloader for plugin classes.
